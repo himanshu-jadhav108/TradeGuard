@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Light Mode Design Tokens */
+  --color-canvas: #f7f9fa;
+  --color-canvas-subtle: #edf0f3;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-surface-hover: #f3f5f7;
+  --color-surface-active: #e8ebef;
+  
+  --color-border: #e2e6eb;
+  --color-border-subtle: #ebeef2;
+  --color-border-strong: #cbd2d9;
+
+  --color-fg: #0f172a;
+  --color-fg-muted: #475569;
+  --color-fg-subtle: #94a3b8;
+  --color-fg-inverse: #ffffff;
+
+  --color-emerald: #059669;
+  --color-emerald-light: #10b981;
+  --color-emerald-dark: #047857;
+  --color-emerald-surface: #ecfdf5;
+
+  --color-warn: #d97706;
+  --color-warn-surface: #fffbeb;
+  --color-warn-text: #b45309;
+
+  --color-danger: #dc2626;
+  --color-danger-surface: #fef2f2;
+  --color-danger-text: #b91c1c;
+
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
+  --shadow-elevated: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+}
+
+.dark {
+  /* Dark Mode Design Tokens - Sophisticated Graphite & Charcoal */
+  --color-canvas: #090c10;
+  --color-canvas-subtle: #0d1117;
+  --color-surface: #141820;
+  --color-surface-elevated: #1a202c;
+  --color-surface-hover: #1f2633;
+  --color-surface-active: #283142;
+
+  --color-border: #232a35;
+  --color-border-subtle: #1a202c;
+  --color-border-strong: #333d4d;
+
+  --color-fg: #f1f5f9;
+  --color-fg-muted: #94a3b8;
+  --color-fg-subtle: #64748b;
+  --color-fg-inverse: #090c10;
+
+  --color-emerald: #10b981;
+  --color-emerald-light: #34d399;
+  --color-emerald-dark: #059669;
+  --color-emerald-surface: rgba(16, 185, 129, 0.08);
+
+  --color-warn: #f59e0b;
+  --color-warn-surface: rgba(245, 158, 11, 0.1);
+  --color-warn-text: #fbbf24;
+
+  --color-danger: #ef4444;
+  --color-danger-surface: rgba(239, 68, 68, 0.1);
+  --color-danger-text: #f87171;
+
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-subtle);
+}
