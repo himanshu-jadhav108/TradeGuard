@@ -82,6 +82,17 @@ def get_activity(limit: int = Query(50, ge=1, le=100)):
 
 
 @api_router.post("/system/reset-demo")
+@api_router.get("/system/reset-demo")
+@api_router.post("/system/restart-demo")
+@api_router.get("/system/restart-demo")
+@api_router.post("/reset-demo")
+@api_router.get("/reset-demo")
+@api_router.post("/restart-demo")
+@api_router.get("/restart-demo")
+@api_router.post("/reset")
+@api_router.get("/reset")
+@api_router.post("/restart")
+@api_router.get("/restart")
 def reset_demo():
     """Resets the demo portfolio and activity to default state for judges."""
     from app.db.store import get_db, init_db, seed_demo_account

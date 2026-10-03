@@ -10,16 +10,51 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.headers || {}),
-    },
-  });
+  let url = `${API_BASE_URL}${endpoint}`;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options?.headers || {}),
+      },
+    });
+  } catch (err) {
+    // If absolute URL failed (e.g. CORS or network), try relative /api path forwarded by Next.js rewrites
+    if (API_BASE_URL.startsWith("http")) {
+      url = `/api${endpoint}`;
+      res = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...(options?.headers || {}),
+        },
+      });
+    } else {
+      throw err;
+    }
+  }
 
   if (!res.ok) {
+    // If got 404 on absolute URL, try relative /api fallback once
+    if (res.status === 404 && API_BASE_URL.startsWith("http")) {
+      try {
+        const fallbackRes = await fetch(`/api${endpoint}`, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            ...(options?.headers || {}),
+          },
+        });
+        if (fallbackRes.ok) {
+          return fallbackRes.json() as Promise<T>;
+        }
+      } catch {
+        // ignore fallback error
+      }
+    }
+
     let errorDetail = `Request failed with status ${res.status}`;
     try {
       const errJson = await res.json();
@@ -73,8 +108,21 @@ export const api = {
 
   getActivity: (limit = 50) => fetchJson<AuditEvent[]>(`/activity?limit=${limit}`),
 
-  resetDemo: () =>
-    fetchJson<{ message: string }>("/system/reset-demo", {
-      method: "POST",
-    }),
+  resetDemo: async () => {
+    try {
+      return await fetchJson<{ message: string }>("/system/reset-demo", {
+        method: "POST",
+      });
+    } catch {
+      try {
+        return await fetchJson<{ message: string }>("/reset-demo", {
+          method: "POST",
+        });
+      } catch {
+        return await fetchJson<{ message: string }>("/reset", {
+          method: "POST",
+        });
+      }
+    }
+  },
 };

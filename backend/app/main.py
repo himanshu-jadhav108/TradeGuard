@@ -42,3 +42,17 @@ def root():
         "health": "/api/health",
         "mode": settings.TM_ENV,
     }
+
+
+@app.post("/reset")
+@app.get("/reset")
+@app.post("/restart")
+@app.get("/restart")
+@app.post("/reset-demo")
+@app.get("/reset-demo")
+@app.post("/restart-demo")
+@app.get("/restart-demo")
+def root_reset():
+    from app.api.router import reset_demo
+    return reset_demo()
+

@@ -6,20 +6,26 @@ import Image from "next/image";
 import { Navbar } from "@/components/Navbar";
 import { TradeComposer } from "@/components/TradeComposer";
 import { TradeReviewCard } from "@/components/TradeReviewCard";
-import { DemoVideoSection } from "@/components/DemoVideoSection";
 import { TradeProposal, OrderRecord } from "@/lib/types";
 import {
   ShieldCheck,
   Lock,
   ArrowRight,
   Cpu,
-  CheckCircle,
   FileCheck2,
   Terminal,
   Activity,
   Layers,
   ChevronRight,
-  ExternalLink,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  Clock,
+  PieChart,
+  ShieldAlert,
+  Server,
+  KeyRound,
+  FileText,
 } from "lucide-react";
 
 export default function LandingPage() {
@@ -28,71 +34,168 @@ export default function LandingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-canvas text-fg selection:bg-emerald/20 selection:text-emerald">
+    <div className="min-h-screen bg-canvas text-fg selection:bg-accent/20 selection:text-accent font-sans">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-24 sm:py-20">
-        {/* SECTION 1: HERO */}
-        <section className="text-center space-y-6 max-w-4xl mx-auto pt-4 sm:pt-10">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-24 sm:space-y-32 sm:py-16">
+        {/* ========================================================================= */}
+        {/* 1. HERO SECTION                                                          */}
+        {/* ========================================================================= */}
+        <section className="text-center space-y-6 max-w-4xl mx-auto pt-4 sm:pt-8">
+          {/* Institutional Trust Eyebrow */}
           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1 text-xs font-medium text-fg-muted shadow-subtle">
-            <span className="h-2 w-2 rounded-full bg-emerald" />
-            <span>Built for True Markets “Build the Next Wealth App” Challenge</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+            <span>Institutional Pre-Trade Execution Layer · True Markets Native</span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-fg leading-[1.08]">
-            Think before <br />
-            <span className="text-emerald">you trade.</span>
-          </h1>
+          {/* Core Brand & Tagline */}
+          <div className="space-y-3">
+            <span className="font-mono text-xs uppercase tracking-widest text-fg-subtle font-semibold block">
+              TradeGuard
+            </span>
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-fg leading-[1.08]">
+              Think before <br />
+              <span className="text-accent">you trade.</span>
+            </h1>
+          </div>
 
+          {/* Exact Core Message */}
           <p className="text-base sm:text-xl text-fg-muted max-w-2xl mx-auto font-normal leading-relaxed">
-            AI-assisted execution with live market context, deterministic risk checks, and strict human control before any money moves.
+            Turn natural-language trade intent into a transparent, risk-checked and human-confirmed trade.
           </p>
 
+          {/* Primary & Secondary Action Triggers */}
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <Link
               href="/app"
-              className="rounded-xl bg-emerald px-6 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-dark transition-all flex items-center gap-2 group"
+              className="rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-subtle hover:bg-accent-dark transition-all flex items-center gap-2 group"
             >
               <span>Try TradeGuard</span>
               <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
             </Link>
             <a
-              href="#demo-walkthrough"
-              className="rounded-xl border border-border bg-surface px-6 py-3.5 text-sm font-semibold text-fg hover:bg-surface-hover transition-all"
+              href="#how-it-works"
+              className="rounded-xl border border-border bg-surface px-6 py-3.5 text-sm font-semibold text-fg hover:bg-surface-hover transition-all shadow-subtle"
             >
-              Watch 2-Min Demo
+              See how it works
             </a>
+          </div>
+
+          {/* System Operational Indicators */}
+          <div className="pt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto text-left">
+            <div className="rounded-xl border border-border bg-surface p-3 text-xs flex items-center gap-2.5">
+              <ShieldCheck className="h-4 w-4 text-accent shrink-0" />
+              <div>
+                <span className="font-semibold text-fg block text-[11px]">Deterministic Risk</span>
+                <span className="text-fg-subtle text-[10px]">Server-side limits & balance check</span>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-3 text-xs flex items-center gap-2.5">
+              <Clock className="h-4 w-4 text-accent shrink-0" />
+              <div>
+                <span className="font-semibold text-fg block text-[11px]">Live Market Quotes</span>
+                <span className="text-fg-subtle text-[10px]">30s TTL freshness window</span>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-surface p-3 text-xs flex items-center gap-2.5">
+              <Lock className="h-4 w-4 text-accent shrink-0" />
+              <div>
+                <span className="font-semibold text-fg block text-[11px]">Human Confirmation</span>
+                <span className="text-fg-subtle text-[10px]">Zero autonomous execution</span>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* SECTION 2: INTERACTIVE PRODUCT PREVIEW */}
-        <section className="space-y-6">
-          <div className="text-center space-y-1">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-emerald font-semibold">
-              Live Interactive Preview
+        {/* ========================================================================= */}
+        {/* 2. INTERACTIVE PRODUCT PREVIEW                                           */}
+        {/* ========================================================================= */}
+        <section id="preview" className="space-y-8 scroll-mt-24">
+          <div className="text-center space-y-1.5 max-w-xl mx-auto">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              Interactive Product Preview
             </span>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-fg">
-              Experience the Trade Review Flow
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+              The Trade Review Lifecycle
             </h2>
-            <p className="text-xs text-fg-subtle max-w-lg mx-auto">
-              Enter a prompt or select a 1-click test below. Watch the deterministic risk engine evaluate your order in real time.
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              Experience how natural language trade intent is validated and converted into a deterministic order proposal.
             </p>
           </div>
 
+          {/* Workflow Stepper Ribbon */}
+          <div className="rounded-2xl border border-border bg-surface p-4 shadow-subtle">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs font-mono">
+              <div
+                className={`p-2.5 rounded-xl border transition-all ${
+                  !activeProposal
+                    ? "bg-accent-surface border-accent/40 text-accent font-bold"
+                    : "bg-canvas-subtle border-border text-fg-muted"
+                }`}
+              >
+                <span className="text-[10px] block opacity-70">STEP 01</span>
+                <span>User Intent</span>
+              </div>
+
+              <div
+                className={`p-2.5 rounded-xl border transition-all ${
+                  activeProposal
+                    ? "bg-accent-surface border-accent/40 text-accent font-bold"
+                    : "bg-canvas-subtle border-border text-fg-subtle"
+                }`}
+              >
+                <span className="text-[10px] block opacity-70">STEP 02</span>
+                <span>Live Quote</span>
+              </div>
+
+              <div
+                className={`p-2.5 rounded-xl border transition-all ${
+                  activeProposal
+                    ? "bg-accent-surface border-accent/40 text-accent font-bold"
+                    : "bg-canvas-subtle border-border text-fg-subtle"
+                }`}
+              >
+                <span className="text-[10px] block opacity-70">STEP 03</span>
+                <span>Risk Engine</span>
+              </div>
+
+              <div
+                className={`p-2.5 rounded-xl border transition-all ${
+                  activeProposal
+                    ? "bg-accent-surface border-accent/40 text-accent font-bold"
+                    : "bg-canvas-subtle border-border text-fg-subtle"
+                }`}
+              >
+                <span className="text-[10px] block opacity-70">STEP 04</span>
+                <span>Trade Review</span>
+              </div>
+
+              <div
+                className={`col-span-2 md:col-span-1 p-2.5 rounded-xl border transition-all ${
+                  activeProposal?.risk.can_execute
+                    ? "bg-accent-surface border-accent/40 text-accent font-bold"
+                    : "bg-canvas-subtle border-border text-fg-subtle"
+                }`}
+              >
+                <span className="text-[10px] block opacity-70">STEP 05</span>
+                <span>Confirmation</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Interactive Stage: Composer + Review Card */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             <div className="lg:col-span-5 space-y-4">
               <TradeComposer
                 onProposalCreated={(prop) => setActiveProposal(prop)}
               />
-              <div className="rounded-xl border border-border bg-canvas-subtle p-4 text-xs text-fg-subtle space-y-2">
-                <span className="font-semibold text-fg block text-[11px]">
-                  What happens when you enter an intent?
+
+              <div className="rounded-xl border border-border bg-canvas-subtle p-4 text-xs text-fg-muted space-y-2">
+                <span className="font-semibold text-fg block text-[11px] uppercase tracking-wider font-sans">
+                  The Deterministic Rule Invariant
                 </span>
-                <p>
-                  1. Structured intent extraction ({`{ asset, side, amount }`})<br />
-                  2. Live quote snapshot retrieved (spread & TTL calculated)<br />
-                  3. 5-point deterministic risk check runs server-side<br />
-                  4. Explainable summary generated prior to any confirmation
+                <p className="leading-relaxed text-[11px]">
+                  Language models generate suggestions; our Python server calculates balances, limits, and fills. If the risk engine issues a <span className="font-mono text-danger font-bold">BLOCK</span>, no user action or prompt instruction can bypass execution boundaries.
                 </p>
               </div>
             </div>
@@ -105,196 +208,389 @@ export default function LandingPage() {
                   onCancelled={() => setActiveProposal(null)}
                 />
               ) : (
-                <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-12 text-center text-fg-subtle flex flex-col items-center justify-center min-h-[360px]">
-                  <div className="h-12 w-12 rounded-xl bg-canvas-subtle border border-border flex items-center justify-center mb-3 text-fg-muted">
-                    <FileCheck2 className="h-6 w-6 text-emerald" />
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-10 sm:p-14 text-center text-fg-subtle flex flex-col items-center justify-center min-h-[420px] shadow-subtle">
+                  <div className="h-12 w-12 rounded-xl bg-canvas-subtle border border-border flex items-center justify-center mb-4 text-fg-muted">
+                    <FileCheck2 className="h-6 w-6 text-accent" />
                   </div>
                   <h3 className="text-sm font-semibold text-fg">
                     Awaiting Trade Intent
                   </h3>
-                  <p className="text-xs text-fg-subtle max-w-sm mt-1">
-                    Select <span className="font-mono text-fg">“Buy $500 of BTC”</span> on the left to see the signature Trade Review card.
+                  <p className="text-xs text-fg-subtle max-w-sm mt-1.5 leading-relaxed">
+                    Select a scenario on the left (e.g. <span className="font-mono text-fg font-medium">“Buy $500 of BTC”</span>) or enter a custom intent to inspect the signature Trade Review card.
                   </p>
+
+                  <div className="mt-6 grid grid-cols-2 gap-2 text-left w-full max-w-md">
+                    <div className="rounded-lg border border-border bg-canvas-subtle p-2.5 text-[11px]">
+                      <span className="text-fg-subtle block font-mono text-[10px]">CHECK 1</span>
+                      <span className="font-medium text-fg">Liquid Cash Balance</span>
+                    </div>
+                    <div className="rounded-lg border border-border bg-canvas-subtle p-2.5 text-[11px]">
+                      <span className="text-fg-subtle block font-mono text-[10px]">CHECK 2</span>
+                      <span className="font-medium text-fg">Asset Allowlist</span>
+                    </div>
+                    <div className="rounded-lg border border-border bg-canvas-subtle p-2.5 text-[11px]">
+                      <span className="text-fg-subtle block font-mono text-[10px]">CHECK 3</span>
+                      <span className="font-medium text-fg">$25,000 Notional Limit</span>
+                    </div>
+                    <div className="rounded-lg border border-border bg-canvas-subtle p-2.5 text-[11px]">
+                      <span className="text-fg-subtle block font-mono text-[10px]">CHECK 4</span>
+                      <span className="font-medium text-fg">40% Concentration</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </section>
 
-        {/* SECTION 3: FOUR-STEP WORKFLOW */}
-        <section className="space-y-10 py-6 border-t border-border">
+        {/* ========================================================================= */}
+        {/* 3. HOW TRADEGUARD WORKS                                                  */}
+        {/* ========================================================================= */}
+        <section id="how-it-works" className="space-y-10 scroll-mt-24">
           <div className="text-center space-y-2 max-w-xl mx-auto">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-emerald font-semibold">
-              The Architecture of Control
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              Execution Architecture
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-              Four steps from intent to settlement.
+              How TradeGuard Works
             </h2>
-            <p className="text-xs sm:text-sm text-fg-muted">
-              Designed around an unbreakable boundary: AI suggests, deterministic rules govern, human confirms.
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              An unyielding pipeline converting natural language requests into mathematically verified, human-confirmed transactions.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Step 1 */}
             <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-sm font-bold text-fg border border-border">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-xs font-bold text-fg border border-border">
                 01
               </div>
-              <h3 className="text-base font-semibold text-fg">Understand</h3>
+              <h3 className="text-sm font-semibold text-fg">Understand Intent</h3>
               <p className="text-xs text-fg-muted leading-relaxed">
-                Natural-language trade requests are converted into strict, typed domain intents. Malformed requests are rejected safely.
+                Free-form conversational input is extracted into strongly-typed domain models (<span className="font-mono text-[11px]">asset, side, amount, amount_type</span>) and validated against Pydantic schemas.
               </p>
             </div>
 
             {/* Step 2 */}
             <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-sm font-bold text-fg border border-border">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-xs font-bold text-fg border border-border">
                 02
               </div>
-              <h3 className="text-base font-semibold text-fg">Check</h3>
+              <h3 className="text-sm font-semibold text-fg">Retrieve Market Context</h3>
               <p className="text-xs text-fg-muted leading-relaxed">
-                The deterministic backend risk engine evaluates asset allowlists, cash balances, maximum notional ceilings, and concentration warnings.
+                Pulls institutional quote snapshots with tight bid-ask spreads, real-time timestamps, and strict 30-second TTL freshness windows before review.
               </p>
             </div>
 
             {/* Step 3 */}
             <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-surface font-mono text-sm font-bold text-emerald border border-emerald/20">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-xs font-bold text-fg border border-border">
                 03
               </div>
-              <h3 className="text-base font-semibold text-fg">Confirm</h3>
+              <h3 className="text-sm font-semibold text-fg">Deterministic Risk Verification</h3>
               <p className="text-xs text-fg-muted leading-relaxed">
-                The user reviews the live quote, fill estimate, and exposure impact. Nothing moves without explicit human authorization.
+                Server-side Python rules evaluate liquid balances, asset allowlists, maximum notional ceilings, and portfolio concentration thresholds.
               </p>
             </div>
 
             {/* Step 4 */}
             <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-canvas-subtle font-mono text-sm font-bold text-fg border border-border">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-surface font-mono text-xs font-bold text-accent border border-accent/30">
                 04
               </div>
-              <h3 className="text-base font-semibold text-fg">Execute</h3>
+              <h3 className="text-sm font-semibold text-fg">Human Confirmation Gate</h3>
               <p className="text-xs text-fg-muted leading-relaxed">
-                Dispatches order to True Markets Gateway via isolated server-side adapter. Logs an immutable audit event and updates portfolio state.
+                Renders the transparent Trade Review card highlighting before/after exposure. No order reaches True Markets Gateway without explicit human authorization.
               </p>
             </div>
           </div>
         </section>
 
-        {/* SECTION 4: SECURITY & CONTROL GUARANTEES */}
-        <section className="rounded-3xl border border-border bg-surface p-8 sm:p-12 shadow-card space-y-8">
-          <div className="max-w-2xl space-y-2">
-            <span className="text-[11px] font-mono uppercase tracking-wider text-emerald font-semibold">
-              Security Specifications
+        {/* ========================================================================= */}
+        {/* 4. WHY THE PRE-TRADE SAFETY LAYER MATTERS                                */}
+        {/* ========================================================================= */}
+        <section id="safety-layer" className="space-y-10 scroll-mt-24">
+          <div className="text-center space-y-2 max-w-xl mx-auto">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              The Safety Imperative
             </span>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-              Fintech-grade trust guarantees.
+              Why the Pre-Trade Safety Layer Matters
             </h2>
-            <p className="text-xs sm:text-sm text-fg-muted">
-              Built with Apple-level restraint and strict zero-trust boundaries between language models and financial execution.
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              Large language models should propose, never execute. TradeGuard enforces a strict architectural firewall between language models and money.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-surface overflow-hidden shadow-card">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-canvas-subtle text-[11px] font-semibold text-fg-muted">
+                    <th className="py-3.5 px-6">Risk Dimension</th>
+                    <th className="py-3.5 px-6 text-danger">Unchecked AI Execution</th>
+                    <th className="py-3.5 px-6 text-accent">TradeGuard Safety Boundary</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  <tr>
+                    <td className="py-4 px-6 font-semibold text-fg">Execution Authority</td>
+                    <td className="py-4 px-6 text-fg-muted">Model autonomously submits orders to exchange APIs directly.</td>
+                    <td className="py-4 px-6 text-fg font-medium">Zero autonomous execution; explicit human cryptographic authorization required.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-6 font-semibold text-fg">Financial Math & Sizing</td>
+                    <td className="py-4 px-6 text-fg-muted">Probabilistic LLM math prone to hallucinated fill prices and quantity errors.</td>
+                    <td className="py-4 px-6 text-fg font-medium">Deterministic server-side Python math using live True Markets quote feeds.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-6 font-semibold text-fg">Balance & Liquidity Checks</td>
+                    <td className="py-4 px-6 text-fg-muted">Assumes purchasing power from chat memory; prone to overdrawing or liquidation.</td>
+                    <td className="py-4 px-6 text-fg font-medium">Authoritative database & gateway balance queries enforce strict cash adequacy.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-6 font-semibold text-fg">Prompt Injection Defense</td>
+                    <td className="py-4 px-6 text-fg-muted">Malicious prompt injection can override instructions and drain balances.</td>
+                    <td className="py-4 px-6 text-fg font-medium">Hardcoded server invariants ($25k ceilings, allowlists) cannot be bypassed by prompts.</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 px-6 font-semibold text-fg">Auditability & Compliance</td>
+                    <td className="py-4 px-6 text-fg-muted">Ephemeral chat transcripts with no verifiable state transitions.</td>
+                    <td className="py-4 px-6 text-fg font-medium">Immutable, chronologically timestamped audit trail with full event metadata.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* 5. PRODUCT CAPABILITIES                                                  */}
+        {/* ========================================================================= */}
+        <section id="capabilities" className="space-y-10 scroll-mt-24">
+          <div className="text-center space-y-2 max-w-xl mx-auto">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              Platform Features
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+              Institutional Product Capabilities
+            </h2>
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              Engineered with fintech-grade precision, complete transparency, and zero fluff.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <Terminal className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">Structured Intent Extraction</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Transforms conversational sentences into validated schemas with asset resolution, side detection, and quantity type inference.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <Clock className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">Live Quoting with 30s TTL</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Tight institutional spreads with timestamp verification. Stale quotes expire automatically to prevent slippage in volatile markets.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">Deterministic Guardrails</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                4-layer server verification yielding clear PASS, WARN, or BLOCK statuses: cash check, allowlist, max notional, and concentration.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <PieChart className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">Portfolio Impact Simulation</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Calculates before and after asset allocation percentages and liquid cash debits before the trade is submitted.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <FileText className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">Immutable Cryptographic Audit</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Every prompt, quote snapshot, risk evaluation, and order fulfillment is permanently appended to a queryable chronological audit stream.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-6 shadow-card space-y-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-canvas-subtle border border-border text-accent">
+                <Activity className="h-4 w-4" />
+              </div>
+              <h3 className="text-sm font-semibold text-fg">True Markets Gateway Integration</h3>
+              <p className="text-xs text-fg-muted leading-relaxed">
+                Connects directly to True Markets Retail Gateway (<span className="font-mono text-[10px]">api.uat.truemarkets.co</span>) with isolated signer key signing.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* 6. SECURITY & ARCHITECTURE                                               */}
+        {/* ========================================================================= */}
+        <section id="security" className="rounded-3xl border border-border bg-surface p-6 sm:p-10 shadow-card space-y-8 scroll-mt-24">
+          <div className="max-w-2xl space-y-2">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              System Architecture & Trust Guarantees
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+              Zero-Trust Financial Architecture
+            </h2>
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              Engineered with institutional separation of duties: language models propose, Python code governs, humans confirm, True Markets executes.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-2.5">
+            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-3">
               <div className="flex items-center gap-2 text-fg font-semibold text-sm">
-                <Lock className="h-4 w-4 text-emerald" />
-                <span>Zero Autonomous Execution</span>
+                <Lock className="h-4 w-4 text-accent" />
+                <span>Zero Direct Model Execution</span>
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
-                The model cannot trigger trade settlement. Every order requires explicit cryptographic authorization from the user.
+                The language model has zero write privileges to True Markets Gateway endpoints or wallet balances. Every order requires explicit human signature.
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-2.5">
+            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-3">
               <div className="flex items-center gap-2 text-fg font-semibold text-sm">
-                <ShieldCheck className="h-4 w-4 text-emerald" />
-                <span>Deterministic Risk Overrides</span>
+                <ShieldAlert className="h-4 w-4 text-accent" />
+                <span>Deterministic Code Overrides</span>
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
-                Authoritative numbers and balance checks are owned exclusively by Python backend code. A <span className="font-mono text-danger font-bold">BLOCK</span> status cannot be bypassed by prompts.
+                Authoritative numbers and balance checks are owned exclusively by server-side Python code. A <span className="font-mono text-danger font-bold">BLOCK</span> status can never be overridden.
               </p>
             </div>
 
-            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-2.5">
+            <div className="rounded-xl border border-border bg-canvas-subtle p-5 space-y-3">
               <div className="flex items-center gap-2 text-fg font-semibold text-sm">
-                <Cpu className="h-4 w-4 text-emerald" />
+                <KeyRound className="h-4 w-4 text-accent" />
                 <span>Backend Credential Isolation</span>
               </div>
               <p className="text-xs text-fg-muted leading-relaxed">
-                True Markets API keys and signer private keys never touch the browser or git repository.
+                True Markets Organization API keys and local private signer keys are strictly backend-only and never reach the client bundle or browser.
               </p>
+            </div>
+          </div>
+
+          {/* Architecture Pipeline Map */}
+          <div className="rounded-xl border border-border bg-canvas-subtle p-4 font-mono text-xs space-y-2">
+            <span className="text-[10px] uppercase font-bold text-fg-subtle tracking-wider font-sans block">
+              Gateway Endpoint Routing
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-[11px] text-fg-muted">
+              <div className="p-2 rounded bg-surface border border-border">
+                <span className="text-accent font-semibold">POST</span> /quotes
+              </div>
+              <div className="p-2 rounded bg-surface border border-border">
+                <span className="text-accent font-semibold">POST</span> /orders
+              </div>
+              <div className="p-2 rounded bg-surface border border-border">
+                <span className="text-accent font-semibold">POST</span> /orders/&#123;id&#125;/execute
+              </div>
+              <div className="p-2 rounded bg-surface border border-border">
+                <span className="text-accent font-semibold">GET</span> /orders/&#123;id&#125;/status
+              </div>
             </div>
           </div>
         </section>
 
-        {/* SECTION 5: DEMO VIDEO SECTION */}
-        <section id="demo-walkthrough" className="space-y-6 pt-6">
-          <DemoVideoSection />
-        </section>
-
-        {/* SECTION 6: TRUE MARKETS INTEGRATION BADGE */}
-        <section className="rounded-2xl border border-border bg-canvas-subtle p-6 text-center space-y-3">
-          <div className="flex items-center justify-center gap-2 text-xs font-mono text-fg-muted">
-            <span className="h-2 w-2 rounded-full bg-emerald" />
-            <span>True Markets Retail Gateway Architecture</span>
+        {/* ========================================================================= */}
+        {/* 7. FINAL CALL TO ACTION                                                  */}
+        {/* ========================================================================= */}
+        <section className="text-center space-y-5 py-8 sm:py-12">
+          <div className="space-y-2 max-w-lg mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+              Ready to trade with total control?
+            </h2>
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              Experience TradeGuard in simulated demo mode with pre-seeded balances or configure live True Markets UAT credentials.
+            </p>
           </div>
-          <p className="text-xs text-fg-subtle max-w-xl mx-auto">
-            TradeGuard connects to the True Markets UAT Gateway (<span className="font-mono">https://api.uat.truemarkets.co/v1/gateway</span>) for quoting, order creation, transaction signing, and settlement status polling.
-          </p>
-        </section>
 
-        {/* SECTION 7: FINAL CTA */}
-        <section className="text-center space-y-4 py-8">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-            Ready to experience TradeGuard?
-          </h2>
-          <p className="text-xs sm:text-sm text-fg-muted max-w-md mx-auto">
-            Explore the simulated demo portfolio or configure UAT Gateway credentials.
-          </p>
-          <div className="pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <Link
               href="/app"
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald px-6 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-dark transition-all"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-subtle hover:bg-accent-dark transition-all"
             >
               <span>Launch Application</span>
               <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/app/portfolio"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-6 py-3.5 text-sm font-semibold text-fg hover:bg-surface-hover transition-all shadow-subtle"
+            >
+              <span>Explore Portfolio</span>
             </Link>
           </div>
         </section>
       </main>
 
-      {/* MINIMAL FOOTER */}
-      <footer className="border-t border-border bg-surface py-8 text-center text-xs text-fg-subtle transition-colors">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Image
-              src="/branding/tradeguard-logo.svg"
-              alt="TradeGuard"
-              width={18}
-              height={18}
-            />
-            <span className="font-bold">
-              <span className="text-fg">Trade</span>
-              <span className="bg-gradient-to-r from-emerald-light via-emerald to-cyan-400 bg-clip-text text-transparent">Guard</span>
-            </span>
-            <span>— Think before you trade.</span>
+      {/* ========================================================================= */}
+      {/* 8. FOOTER                                                                */}
+      {/* ========================================================================= */}
+      <footer className="border-t border-border bg-surface py-10 text-xs text-fg-subtle transition-colors">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <Image
+                src="/branding/tradeguard-logo.svg"
+                alt="TradeGuard"
+                width={18}
+                height={18}
+              />
+              <span className="font-semibold text-fg text-sm">
+                TradeGuard
+              </span>
+              <span className="text-fg-subtle font-mono text-[11px]">
+                — Think before you trade.
+              </span>
+            </div>
+
+            <div className="flex items-center gap-5 text-xs text-fg-muted font-medium">
+              <Link href="/app" className="hover:text-fg transition-colors">
+                Dashboard
+              </Link>
+              <Link href="/app/trade" className="hover:text-fg transition-colors">
+                Trade
+              </Link>
+              <Link href="/app/portfolio" className="hover:text-fg transition-colors">
+                Portfolio
+              </Link>
+              <Link href="/app/activity" className="hover:text-fg transition-colors">
+                Audit Trail
+              </Link>
+              <a href="#security" className="hover:text-fg transition-colors">
+                Security
+              </a>
+            </div>
           </div>
-          <div className="flex items-center gap-4 text-fg-subtle text-[11px]">
-            <span>True Markets Hackathon Edition</span>
-            <span>•</span>
-            <Link href="/app" className="hover:text-fg transition-colors">
-              App
-            </Link>
-            <span>•</span>
-            <Link href="/app/portfolio" className="hover:text-fg transition-colors">
-              Portfolio
-            </Link>
-            <span>•</span>
-            <Link href="/app/activity" className="hover:text-fg transition-colors">
-              Audit
-            </Link>
+
+          <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-fg-subtle">
+            <span>
+              Built for the True Markets “Build the Next Wealth App” Challenge.
+            </span>
+            <span className="font-mono">
+              Deterministic Gate · Zero Autonomous Execution Invariant
+            </span>
           </div>
         </div>
       </footer>

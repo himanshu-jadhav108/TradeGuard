@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme";
-import { Sun, Moon, Shield, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Sun, Moon, RefreshCw, CheckCircle2, Menu, X, ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 
 export function Navbar({ onReset }: { onReset?: () => void }) {
@@ -13,6 +13,14 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
   const pathname = usePathname();
   const [resetting, setResetting] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isApp = pathname?.startsWith("/app");
 
   const handleReset = async () => {
     try {
@@ -28,55 +36,55 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
     }
   };
 
-  const navLinks = [
+  const appNavLinks = [
     { href: "/app", label: "Overview" },
     { href: "/app/trade", label: "Trade" },
     { href: "/app/portfolio", label: "Portfolio" },
     { href: "/app/activity", label: "Activity" },
   ];
 
-  const isApp = pathname?.startsWith("/app");
+  const landingNavLinks = [
+    { href: "#preview", label: "Product" },
+    { href: "#how-it-works", label: "How It Works" },
+    { href: "#safety-layer", label: "Safety Layer" },
+    { href: "#capabilities", label: "Capabilities" },
+    { href: "#security", label: "Security" },
+  ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/90 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur-md transition-colors">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Brand Logo & Tagline */}
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-canvas-subtle border border-border group-hover:border-emerald transition-colors">
+        {/* Brand Logo & Wordmark */}
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-surface border border-border group-hover:border-accent/60 transition-colors shadow-subtle">
             <Image
               src="/branding/tradeguard-logo.svg"
               alt="TradeGuard"
-              width={26}
-              height={26}
-              className="drop-shadow"
+              width={20}
+              height={20}
+              className="drop-shadow-sm"
             />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg tracking-tight">
-                <span className="font-bold text-fg">Trade</span>
-                <span className="font-bold bg-gradient-to-r from-emerald-light via-emerald to-cyan-400 bg-clip-text text-transparent">Guard</span>
-              </span>
-              <span className="rounded-full bg-emerald-surface px-2 py-0.5 text-[10px] font-medium text-emerald border border-emerald/20">
-                v1.0
-              </span>
-            </div>
-            <p className="text-[11px] text-fg-subtle hidden sm:block">
-              Think before you trade.
-            </p>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold tracking-tight text-fg">
+              TradeGuard
+            </span>
+            <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold bg-accent-surface text-accent border border-accent/20">
+              UAT / DEMO
+            </span>
           </div>
         </Link>
 
-        {/* Center Navigation if in App */}
-        {isApp && (
+        {/* Center Desktop Navigation */}
+        {isApp ? (
           <nav className="hidden md:flex items-center gap-1 rounded-lg border border-border bg-canvas-subtle p-1">
-            {navLinks.map((link) => {
+            {appNavLinks.map((link) => {
               const active = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     active
                       ? "bg-surface text-fg shadow-subtle border border-border"
                       : "text-fg-muted hover:text-fg hover:bg-surface-hover"
@@ -87,69 +95,195 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
               );
             })}
           </nav>
+        ) : (
+          <nav className="hidden md:flex items-center gap-6">
+            {landingNavLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="text-xs font-medium text-fg-muted hover:text-fg transition-colors"
+              >
+                {link.label}
+              </a>
+            ))}
+          </nav>
         )}
 
-        {/* Right Actions: Mode Badge, Reset Demo, Theme Toggle, CTA */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Mode Pill */}
+        {/* Right Desktop Actions */}
+        <div className="hidden sm:flex items-center gap-2.5">
+          {/* Simulated Mode Pill */}
           <div className="flex items-center gap-1.5 rounded-full border border-border bg-canvas-subtle px-2.5 py-1 text-xs">
-            <span className="h-2 w-2 rounded-full bg-emerald animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
             <span className="font-mono text-[11px] font-medium text-fg-muted">
-              DEMO MODE
+              DEMO
             </span>
           </div>
 
-          {/* Reset Demo Button */}
-          {isApp && (
-            <button
-              onClick={handleReset}
-              disabled={resetting}
-              title="Reset demo account to initial state"
-              className="flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${resetting ? "animate-spin text-emerald" : ""}`}
-              />
-              <span className="hidden sm:inline">
-                {resetSuccess ? "Reset!" : "Reset Demo"}
-              </span>
-              {resetSuccess && (
-                <CheckCircle2 className="h-3 w-3 text-emerald" />
-              )}
-            </button>
-          )}
-
-          {/* Theme Toggle Button */}
+          {/* Reset / Restart Demo Button */}
           <button
-            onClick={toggleTheme}
-            aria-label="Toggle color theme"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors"
+            type="button"
+            suppressHydrationWarning
+            onClick={handleReset}
+            disabled={resetting}
+            title="Reset demo account to initial state"
+            className="flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors shadow-subtle"
           >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4 text-warn" />
-            ) : (
-              <Moon className="h-4 w-4 text-fg" />
+            <RefreshCw
+              className={`h-3 w-3 ${resetting ? "animate-spin text-accent" : ""}`}
+            />
+            <span className="text-xs">
+              {resetSuccess ? "Reset!" : "Reset Demo"}
+            </span>
+            {resetSuccess && (
+              <CheckCircle2 className="h-3 w-3 text-accent" />
             )}
           </button>
 
-          {/* App / Landing Link Button */}
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            suppressHydrationWarning
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-fg-muted hover:text-fg hover:bg-surface-hover transition-colors shadow-subtle"
+          >
+            {mounted ? (
+              theme === "dark" ? (
+                <Sun className="h-3.5 w-3.5 text-warn" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 text-fg" />
+              )
+            ) : (
+              <span className="h-3.5 w-3.5" />
+            )}
+          </button>
+
+          {/* Launch App / Home Link */}
           {!isApp ? (
             <Link
               href="/app"
-              className="rounded-lg bg-emerald px-4 py-2 text-xs font-medium text-white hover:bg-emerald-dark transition-colors shadow-sm"
+              className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark transition-all shadow-subtle flex items-center gap-1.5"
             >
-              Launch App
+              <span>Launch App</span>
+              <ArrowRight className="h-3 w-3" />
             </Link>
           ) : (
             <Link
               href="/"
-              className="text-xs text-fg-subtle hover:text-fg transition-colors hidden sm:block"
+              className="text-xs font-medium text-fg-subtle hover:text-fg transition-colors px-2 py-1"
             >
               Home
             </Link>
           )}
         </div>
+
+        {/* Mobile Menu Button */}
+        <div className="flex sm:hidden items-center gap-2">
+          <button
+            type="button"
+            suppressHydrationWarning
+            onClick={toggleTheme}
+            aria-label="Toggle theme"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-fg-muted"
+          >
+            {mounted ? (
+              theme === "dark" ? (
+                <Sun className="h-3.5 w-3.5 text-warn" />
+              ) : (
+                <Moon className="h-3.5 w-3.5 text-fg" />
+              )
+            ) : (
+              <span className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            suppressHydrationWarning
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle navigation menu"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface text-fg"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-4 w-4" />
+            ) : (
+              <Menu className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile Drawer */}
+      {mobileMenuOpen && (
+        <div className="sm:hidden border-t border-border bg-surface px-4 py-4 space-y-3">
+          <nav className="flex flex-col space-y-1">
+            {isApp
+              ? appNavLinks.map((link) => {
+                  const active = pathname === link.href;
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg ${
+                        active
+                          ? "bg-canvas-subtle text-fg font-semibold"
+                          : "text-fg-muted hover:text-fg"
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })
+              : landingNavLinks.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="px-3 py-2 text-xs font-medium text-fg-muted hover:text-fg"
+                  >
+                    {link.label}
+                  </a>
+                ))}
+          </nav>
+
+          <div className="pt-3 border-t border-border flex flex-col gap-2">
+            <button
+              type="button"
+              suppressHydrationWarning
+              onClick={() => {
+                handleReset();
+                setMobileMenuOpen(false);
+              }}
+              disabled={resetting}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-canvas-subtle py-2 text-xs font-medium text-fg"
+            >
+              <RefreshCw
+                className={`h-3 w-3 ${resetting ? "animate-spin text-accent" : ""}`}
+              />
+              <span>{resetSuccess ? "Demo Account Reset!" : "Reset Demo Account"}</span>
+            </button>
+
+            {isApp ? (
+              <Link
+                href="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="text-center text-xs text-fg-subtle hover:text-fg py-1"
+              >
+                Back to Landing Page
+              </Link>
+            ) : (
+              <Link
+                href="/app"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-accent py-2.5 text-xs font-semibold text-white"
+              >
+                <span>Launch App</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 }

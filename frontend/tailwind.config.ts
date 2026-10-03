@@ -31,6 +31,12 @@ const config: Config = {
           subtle: "var(--color-fg-subtle)",
           inverse: "var(--color-fg-inverse)",
         },
+        accent: {
+          DEFAULT: "var(--color-accent)",
+          light: "var(--color-accent-light)",
+          dark: "var(--color-accent-dark)",
+          surface: "var(--color-accent-surface)",
+        },
         emerald: {
           DEFAULT: "var(--color-emerald)",
           light: "var(--color-emerald-light)",
@@ -52,6 +58,7 @@ const config: Config = {
         sans: [
           "-apple-system",
           "BlinkMacSystemFont",
+          '"Inter"',
           '"Segoe UI"',
           "Roboto",
           '"Helvetica Neue"',
@@ -59,6 +66,7 @@ const config: Config = {
           "sans-serif",
         ],
         mono: [
+          '"JetBrains Mono"',
           '"SF Mono"',
           "Menlo",
           "Monaco",
