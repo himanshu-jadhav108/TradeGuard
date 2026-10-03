@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { PortfolioSummary } from "@/lib/types";
 import { api } from "@/lib/api";
-import { Wallet, TrendingUp, DollarSign, PieChart as PieIcon, RefreshCw } from "lucide-react";
+import { Wallet, DollarSign, Activity, RefreshCw } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -16,8 +16,8 @@ const ASSET_COLORS: Record<string, string> = {
   BTC: "#f59e0b",
   ETH: "#6366f1",
   SOL: "#14b8a6",
-  USDC: "#10b981",
-  CASH: "#059669",
+  USDC: "#0d9488",
+  CASH: "#0f766e",
 };
 
 export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number }) {
@@ -42,9 +42,9 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
 
   if (loading && !portfolio) {
     return (
-      <div className="w-full rounded-2xl border border-border bg-surface p-8 text-center text-fg-subtle">
-        <RefreshCw className="h-6 w-6 animate-spin mx-auto mb-2 text-emerald" />
-        <span>Loading portfolio metrics...</span>
+      <div className="w-full rounded-2xl border border-border bg-surface p-8 text-center text-fg-muted">
+        <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-accent" />
+        <span className="text-xs">Loading portfolio balances...</span>
       </div>
     );
   }
@@ -52,6 +52,11 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
   if (!portfolio) {
     return null;
   }
+
+  const totalPositions = portfolio.positions.length;
+  const cashPct = portfolio.total_value_usd > 0
+    ? ((portfolio.cash_usd / portfolio.total_value_usd) * 100).toFixed(1)
+    : "0.0";
 
   // Prepare chart data
   const chartData = [
@@ -63,9 +68,43 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
     ...portfolio.positions.map((p) => ({
       name: p.asset,
       value: p.value_usd,
-      color: ASSET_COLORS[p.asset] || "#8b5cf6",
+      color: ASSET_COLORS[p.asset] || "#64748b",
     })),
   ];
+
+  // Custom high-contrast tooltip for Recharts
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      const assetColor = data.payload?.color || "#0d9488";
+      const totalVal = portfolio?.total_value_usd || 1;
+      const sharePct = ((Number(data.value) / totalVal) * 100).toFixed(1);
+
+      return (
+        <div className="rounded-xl border border-border-strong bg-surface-elevated p-3 shadow-elevated text-xs font-mono pointer-events-none min-w-[150px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span
+              className="h-2.5 w-2.5 rounded-full shrink-0"
+              style={{ backgroundColor: assetColor }}
+            />
+            <span className="font-sans font-semibold text-fg text-xs">
+              {data.name}
+            </span>
+          </div>
+          <div className="text-fg font-bold text-sm tabular-nums">
+            ${Number(data.value).toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </div>
+          <div className="text-[11px] text-fg-muted mt-0.5 font-sans font-medium">
+            {sharePct}% of portfolio
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="space-y-6">
@@ -73,63 +112,68 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Total Net Worth */}
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-          <div className="flex items-center justify-between text-fg-subtle mb-1">
-            <span className="text-xs font-medium">Total Net Worth</span>
-            <Wallet className="h-4 w-4 text-emerald" />
+          <div className="flex items-center justify-between text-fg-muted mb-1.5">
+            <span className="text-xs font-medium">Total Portfolio Valuation</span>
+            <Wallet className="h-4 w-4 text-accent" />
           </div>
-          <div className="text-2xl font-bold tracking-tight text-fg font-mono">
+          <div className="text-2xl font-bold tracking-tight text-fg tabular-nums font-sans">
             $
             {portfolio.total_value_usd.toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald font-medium">
-            <TrendingUp className="h-3.5 w-3.5" />
-            <span>+1.94% portfolio 24h</span>
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-fg-muted font-mono">
+            <span>{totalPositions} open asset holdings</span>
           </div>
         </div>
 
         {/* Available Cash */}
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-          <div className="flex items-center justify-between text-fg-subtle mb-1">
-            <span className="text-xs font-medium">Available Cash (USDC)</span>
-            <DollarSign className="h-4 w-4 text-emerald" />
+          <div className="flex items-center justify-between text-fg-muted mb-1.5">
+            <span className="text-xs font-medium">Liquid Cash (USDC)</span>
+            <DollarSign className="h-4 w-4 text-accent" />
           </div>
-          <div className="text-2xl font-bold tracking-tight text-fg font-mono">
+          <div className="text-2xl font-bold tracking-tight text-fg tabular-nums font-sans">
             $
             {portfolio.cash_usd.toLocaleString(undefined, {
               minimumFractionDigits: 2,
             })}
           </div>
-          <span className="mt-2 block text-xs text-fg-subtle">
-            Liquid settled purchasing power
+          <span className="mt-2 block text-xs text-fg-muted font-mono">
+            {cashPct}% of total purchasing power
           </span>
         </div>
 
-        {/* Environment & Mode */}
+        {/* Execution Mode */}
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-          <div className="flex items-center justify-between text-fg-subtle mb-1">
-            <span className="text-xs font-medium">Execution Mode</span>
-            <PieIcon className="h-4 w-4 text-emerald" />
+          <div className="flex items-center justify-between text-fg-muted mb-1.5">
+            <span className="text-xs font-medium">Gateway Execution Mode</span>
+            <Activity className="h-4 w-4 text-accent" />
           </div>
           <div className="text-xl font-bold tracking-tight text-fg flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald animate-pulse" />
-            <span>{portfolio.mode}</span>
+            <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono text-sm">{portfolio.mode}</span>
           </div>
-          <span className="mt-2 block text-xs text-fg-subtle">
-            Seeded simulation with live quote feeds
+          <span className="mt-2 block text-xs text-fg-muted font-mono text-[11px]">
+            Live quotes · Deterministic settlement
           </span>
         </div>
       </div>
 
       {/* Allocation Breakdown and Holdings Table */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Allocation Pie Chart */}
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-card flex flex-col justify-between">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted mb-4">
-            Asset Exposure
-          </h3>
-          <div className="h-52 w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Allocation Donut Chart */}
+        <div className="lg:col-span-4 rounded-2xl border border-border bg-surface p-5 shadow-card flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-fg font-sans">
+              Asset Exposure
+            </h3>
+            <span className="font-mono text-[11px] text-fg-muted font-medium">
+              100% Total
+            </span>
+          </div>
+
+          <div className="h-52 w-full my-auto">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -140,29 +184,26 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
                   outerRadius={75}
                   paddingAngle={3}
                   dataKey="value"
+                  stroke="var(--color-surface)"
+                  strokeWidth={2}
+                  style={{ outline: "none" }}
                 >
                   {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      style={{ outline: "none" }}
+                    />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(val: any) => [
-                    `$${Number(val).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}`,
-                    "Value",
-                  ]}
-                  contentStyle={{
-                    backgroundColor: "var(--color-surface-elevated)",
-                    borderColor: "var(--color-border)",
-                    borderRadius: "0.5rem",
-                    color: "var(--color-fg)",
-                    fontSize: "12px",
-                  }}
+                  content={<CustomTooltip />}
+                  wrapperStyle={{ outline: "none" }}
                 />
               </PieChart>
             </ResponsiveContainer>
           </div>
+
           <div className="flex flex-wrap items-center justify-center gap-3 pt-3 border-t border-border text-[11px]">
             {chartData.map((d) => (
               <div key={d.name} className="flex items-center gap-1.5">
@@ -170,33 +211,33 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: d.color }}
                 />
-                <span className="text-fg-muted font-medium">{d.name}</span>
+                <span className="text-fg font-medium">{d.name}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Positions Table */}
-        <div className="lg:col-span-2 rounded-2xl border border-border bg-surface p-5 shadow-card">
+        <div className="lg:col-span-8 rounded-2xl border border-border bg-surface p-5 shadow-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-              Active Holdings
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-fg font-sans">
+              Settled Positions
             </h3>
-            <span className="text-xs text-fg-subtle">
-              As of {new Date(portfolio.as_of).toLocaleTimeString()}
+            <span className="text-[11px] font-mono text-fg-muted">
+              Updated: {new Date(portfolio.as_of).toLocaleTimeString()}
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
               <thead>
-                <tr className="border-b border-border text-fg-subtle text-[11px] font-sans">
+                <tr className="border-b border-border text-fg-muted text-[11px] font-sans">
                   <th className="pb-3 font-semibold">Asset</th>
                   <th className="pb-3 font-semibold">Quantity</th>
                   <th className="pb-3 font-semibold">Market Price</th>
                   <th className="pb-3 font-semibold">Total Value</th>
                   <th className="pb-3 font-semibold">Allocation</th>
-                  <th className="pb-3 font-semibold text-right">24h</th>
+                  <th className="pb-3 font-semibold text-right">24h Chg</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -207,42 +248,42 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
                         className="h-2 w-2 rounded-full"
                         style={{
                           backgroundColor:
-                            ASSET_COLORS[pos.asset] || "#10b981",
+                            ASSET_COLORS[pos.asset] || "#0d9488",
                         }}
                       />
                       <span>{pos.asset}</span>
                     </td>
-                    <td className="py-3 text-fg">
+                    <td className="py-3 text-fg font-medium tabular-nums">
                       {pos.quantity.toLocaleString(undefined, {
                         maximumFractionDigits: 6,
                       })}
                     </td>
-                    <td className="py-3 text-fg-muted">
+                    <td className="py-3 text-fg tabular-nums">
                       $
                       {pos.price_usd.toLocaleString(undefined, {
                         minimumFractionDigits: 2,
                       })}
                     </td>
-                    <td className="py-3 font-semibold text-fg">
+                    <td className="py-3 font-bold text-fg tabular-nums">
                       $
                       {pos.value_usd.toLocaleString(undefined, {
                         minimumFractionDigits: 2,
                       })}
                     </td>
-                    <td className="py-3 text-fg-muted">
+                    <td className="py-3 text-fg font-medium">
                       <div className="flex items-center gap-2">
-                        <span>{pos.allocation_pct}%</span>
+                        <span className="tabular-nums">{pos.allocation_pct}%</span>
                         <div className="h-1.5 w-12 bg-border rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-emerald rounded-full"
+                            className="h-full bg-accent rounded-full"
                             style={{ width: `${Math.min(100, pos.allocation_pct)}%` }}
                           />
                         </div>
                       </div>
                     </td>
                     <td
-                      className={`py-3 text-right font-medium ${
-                        pos.pnl_24h_pct >= 0 ? "text-emerald" : "text-danger"
+                      className={`py-3 text-right font-semibold tabular-nums ${
+                        pos.pnl_24h_pct >= 0 ? "text-accent" : "text-danger"
                       }`}
                     >
                       {pos.pnl_24h_pct >= 0 ? "+" : ""}

@@ -3,27 +3,32 @@
 @tailwind utilities;
 
 :root {
-  /* Light Mode Design Tokens */
-  --color-canvas: #f7f9fa;
-  --color-canvas-subtle: #edf0f3;
+  /* Light Mode Design Tokens — Institutional Slate & Restrained Teal */
+  --color-canvas: #f8fafc;
+  --color-canvas-subtle: #f1f5f9;
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
-  --color-surface-hover: #f3f5f7;
-  --color-surface-active: #e8ebef;
+  --color-surface-hover: #f8fafc;
+  --color-surface-active: #f1f5f9;
   
-  --color-border: #e2e6eb;
-  --color-border-subtle: #ebeef2;
-  --color-border-strong: #cbd2d9;
+  --color-border: #e2e8f0;
+  --color-border-subtle: #f1f5f9;
+  --color-border-strong: #cbd5e1;
 
-  --color-fg: #0f172a;
-  --color-fg-muted: #475569;
-  --color-fg-subtle: #94a3b8;
+  --color-fg: #090d16;
+  --color-fg-muted: #334155;
+  --color-fg-subtle: #475569;
   --color-fg-inverse: #ffffff;
 
-  --color-emerald: #059669;
-  --color-emerald-light: #10b981;
-  --color-emerald-dark: #047857;
-  --color-emerald-surface: #ecfdf5;
+  --color-accent: #0d9488;
+  --color-accent-light: #14b8a6;
+  --color-accent-dark: #0f766e;
+  --color-accent-surface: #f0fdfa;
+
+  --color-emerald: #0d9488;
+  --color-emerald-light: #14b8a6;
+  --color-emerald-dark: #0f766e;
+  --color-emerald-surface: #f0fdfa;
 
   --color-warn: #d97706;
   --color-warn-surface: #fffbeb;
@@ -33,33 +38,38 @@
   --color-danger-surface: #fef2f2;
   --color-danger-text: #b91c1c;
 
-  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-elevated: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+  --shadow-subtle: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  --shadow-card: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.05);
+  --shadow-elevated: 0 10px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
 }
 
 .dark {
-  /* Dark Mode Design Tokens - Sophisticated Graphite & Charcoal */
-  --color-canvas: #090c10;
-  --color-canvas-subtle: #0d1117;
-  --color-surface: #141820;
-  --color-surface-elevated: #1a202c;
-  --color-surface-hover: #1f2633;
-  --color-surface-active: #283142;
+  /* Dark Mode Design Tokens — Sophisticated Institutional Graphite & Charcoal */
+  --color-canvas: #090b0f;
+  --color-canvas-subtle: #0f131a;
+  --color-surface: #141923;
+  --color-surface-elevated: #1a202d;
+  --color-surface-hover: #1e2636;
+  --color-surface-active: #263044;
 
-  --color-border: #232a35;
-  --color-border-subtle: #1a202c;
-  --color-border-strong: #333d4d;
+  --color-border: #222b3b;
+  --color-border-subtle: #19202c;
+  --color-border-strong: #334155;
 
-  --color-fg: #f1f5f9;
-  --color-fg-muted: #94a3b8;
-  --color-fg-subtle: #64748b;
-  --color-fg-inverse: #090c10;
+  --color-fg: #ffffff;
+  --color-fg-muted: #cbd5e1;
+  --color-fg-subtle: #94a3b8;
+  --color-fg-inverse: #090b0f;
 
-  --color-emerald: #10b981;
-  --color-emerald-light: #34d399;
-  --color-emerald-dark: #059669;
-  --color-emerald-surface: rgba(16, 185, 129, 0.08);
+  --color-accent: #14b8a6;
+  --color-accent-light: #2dd4bf;
+  --color-accent-dark: #0d9488;
+  --color-accent-surface: rgba(20, 184, 166, 0.08);
+
+  --color-emerald: #14b8a6;
+  --color-emerald-light: #2dd4bf;
+  --color-emerald-dark: #0d9488;
+  --color-emerald-surface: rgba(20, 184, 166, 0.08);
 
   --color-warn: #f59e0b;
   --color-warn-surface: rgba(245, 158, 11, 0.1);
@@ -69,17 +79,21 @@
   --color-danger-surface: rgba(239, 68, 68, 0.1);
   --color-danger-text: #f87171;
 
-  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
-  --shadow-elevated: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.45), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 12px 28px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
 }
 
 body {
   background-color: var(--color-canvas);
   color: var(--color-fg);
-  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Custom Scrollbar */
@@ -96,4 +110,50 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-fg-subtle);
+}
+
+/* Recharts Tooltip & Outline Normalization */
+.recharts-default-tooltip {
+  background-color: #1a202d !important;
+  border: 1px solid #334155 !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.6) !important;
+  color: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+}
+
+.recharts-tooltip-item,
+.recharts-tooltip-item-name,
+.recharts-tooltip-item-value,
+.recharts-tooltip-item-separator {
+  color: #ffffff !important;
+  font-family: inherit !important;
+  font-weight: 500 !important;
+}
+
+.recharts-tooltip-label {
+  color: #cbd5e1 !important;
+  font-weight: 600 !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* Eliminate focus rectangle on chart pie slices */
+.recharts-pie-sector:focus,
+.recharts-sector:focus,
+.recharts-wrapper:focus,
+.recharts-surface:focus,
+path.recharts-sector:focus {
+  outline: none !important;
+}
+
+/* Accessible Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
