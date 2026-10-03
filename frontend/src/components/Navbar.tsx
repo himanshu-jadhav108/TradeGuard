@@ -53,8 +53,9 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-lg tracking-tight text-fg">
-                TradeGuard
+              <span className="text-lg tracking-tight">
+                <span className="font-bold text-fg">Trade</span>
+                <span className="font-bold bg-gradient-to-r from-emerald-light via-emerald to-cyan-400 bg-clip-text text-transparent">Guard</span>
               </span>
               <span className="rounded-full bg-emerald-surface px-2 py-0.5 text-[10px] font-medium text-emerald border border-emerald/20">
                 v1.0

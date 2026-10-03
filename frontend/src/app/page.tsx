@@ -275,7 +275,10 @@ export default function LandingPage() {
               width={18}
               height={18}
             />
-            <span className="font-semibold text-fg">TradeGuard</span>
+            <span className="font-bold">
+              <span className="text-fg">Trade</span>
+              <span className="bg-gradient-to-r from-emerald-light via-emerald to-cyan-400 bg-clip-text text-transparent">Guard</span>
+            </span>
             <span>— Think before you trade.</span>
           </div>
           <div className="flex items-center gap-4 text-fg-subtle text-[11px]">
