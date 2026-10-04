@@ -1,66 +1,79 @@
 import {
   AuditEvent,
+  IntentParseResponse,
   OrderRecord,
-  ParsedIntent,
   PortfolioSummary,
+  SessionResetResponse,
   TradeProposal,
 } from "./types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+export function getSessionId(): string {
+  if (typeof window === "undefined") return "demo-user-1";
+  let sid = localStorage.getItem("tradeguard_session_id");
+  if (!sid || sid.trim().length < 4) {
+    sid = "sess-" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+    localStorage.setItem("tradeguard_session_id", sid);
+  }
+  return sid;
+}
 
-async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  let url = `${API_BASE_URL}${endpoint}`;
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "/api";
+
+async function fetchJson<T>(
+  endpoint: string,
+  options?: RequestInit,
+  isRetryable: boolean = false
+): Promise<T> {
+  const sessionId = getSessionId();
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  
+  // Use relative /api endpoint directly if API_BASE_URL is relative or default
+  const base = API_BASE_URL.replace(/\/+$/, "");
+  const url = base.endsWith("/api") && cleanEndpoint.startsWith("/api")
+    ? `${base}${cleanEndpoint.replace(/^\/api/, "")}`
+    : `${base}${cleanEndpoint}`;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Session-ID": sessionId,
+    ...(options?.headers as Record<string, string> || {}),
+  };
+
+  const executeFetch = async () => {
+    return fetch(url, {
+      ...options,
+      headers,
+    });
+  };
+
   let res: Response;
   try {
-    res = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(options?.headers || {}),
-      },
-    });
-  } catch (err) {
-    // If absolute URL failed (e.g. CORS or network), try relative /api path forwarded by Next.js rewrites
-    if (API_BASE_URL.startsWith("http")) {
-      url = `/api${endpoint}`;
-      res = await fetch(url, {
-        ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options?.headers || {}),
-        },
-      });
+    res = await executeFetch();
+  } catch (err: any) {
+    // Only safe GET requests can be retried once on transient network failure
+    if (isRetryable && (!options?.method || options.method === "GET")) {
+      try {
+        res = await executeFetch();
+      } catch {
+        throw new Error(err.message || "Network error connecting to TradeGuard API.");
+      }
     } else {
-      throw err;
+      throw new Error(err.message || "Network error connecting to TradeGuard API.");
     }
   }
 
   if (!res.ok) {
-    // If got 404 on absolute URL, try relative /api fallback once
-    if (res.status === 404 && API_BASE_URL.startsWith("http")) {
-      try {
-        const fallbackRes = await fetch(`/api${endpoint}`, {
-          ...options,
-          headers: {
-            "Content-Type": "application/json",
-            ...(options?.headers || {}),
-          },
-        });
-        if (fallbackRes.ok) {
-          return fallbackRes.json() as Promise<T>;
-        }
-      } catch {
-        // ignore fallback error
-      }
-    }
-
     let errorDetail = `Request failed with status ${res.status}`;
     try {
       const errJson = await res.json();
       errorDetail = errJson.detail || errJson.message || errorDetail;
     } catch {
-      // ignore json parse error
+      if (res.status === 502 || res.status === 503) {
+        errorDetail = "TradeGuard backend service is currently unavailable. Please ensure the backend server is running.";
+      } else if (res.status === 404) {
+        errorDetail = "Requested resource not found.";
+      }
     }
     throw new Error(errorDetail);
   }
@@ -69,10 +82,16 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<T>
 }
 
 export const api = {
-  getHealth: () => fetchJson<{ status: string; true_markets_mode: string }>("/health"),
+  getHealth: () =>
+    fetchJson<{
+      status: string;
+      true_markets_mode: string;
+      true_markets_configured: boolean;
+      supported_assets: string[];
+    }>("/health", undefined, true),
 
   parseIntent: (prompt: string) =>
-    fetchJson<ParsedIntent>("/intent/parse", {
+    fetchJson<IntentParseResponse>("/intent/parse", {
       method: "POST",
       body: JSON.stringify({ prompt }),
     }),
@@ -83,46 +102,45 @@ export const api = {
       body: JSON.stringify({ prompt }),
     }),
 
-  createStructuredProposal: (asset: string, side: "BUY" | "SELL", amount: number, amount_type: "USD" | "ASSET") =>
+  createStructuredProposal: (
+    asset: string,
+    side: "BUY" | "SELL",
+    amount: number,
+    amount_type: "USD" | "ASSET"
+  ) =>
     fetchJson<TradeProposal>("/trades/proposals", {
       method: "POST",
       body: JSON.stringify({ asset, side, amount, amount_type }),
     }),
 
   getProposal: (proposalId: string) =>
-    fetchJson<TradeProposal>(`/trades/proposals/${proposalId}`),
+    fetchJson<TradeProposal>(`/trades/proposals/${proposalId}`, undefined, true),
 
-  confirmTrade: (proposalId: string) =>
+  confirmTrade: (proposalId: string, acknowledgedWarnings: boolean = false) =>
     fetchJson<OrderRecord>(`/trades/${proposalId}/confirm`, {
       method: "POST",
+      body: JSON.stringify({
+        proposal_id: proposalId,
+        acknowledged_warnings: acknowledgedWarnings,
+      }),
     }),
 
   cancelTrade: (proposalId: string) =>
-    fetchJson<{ status: string }>(`/trades/${proposalId}/cancel`, {
+    fetchJson<{ status: string; proposal_id: string }>(`/trades/${proposalId}/cancel`, {
       method: "POST",
     }),
 
-  getOrder: (orderId: string) => fetchJson<OrderRecord>(`/orders/${orderId}`),
+  getOrder: (orderId: string) =>
+    fetchJson<OrderRecord>(`/orders/${orderId}`, undefined, true),
 
-  getPortfolio: () => fetchJson<PortfolioSummary>("/portfolio"),
+  getPortfolio: () =>
+    fetchJson<PortfolioSummary>("/portfolio", undefined, true),
 
-  getActivity: (limit = 50) => fetchJson<AuditEvent[]>(`/activity?limit=${limit}`),
+  getActivity: (limit = 50) =>
+    fetchJson<AuditEvent[]>(`/activity?limit=${limit}`, undefined, true),
 
-  resetDemo: async () => {
-    try {
-      return await fetchJson<{ message: string }>("/system/reset-demo", {
-        method: "POST",
-      });
-    } catch {
-      try {
-        return await fetchJson<{ message: string }>("/reset-demo", {
-          method: "POST",
-        });
-      } catch {
-        return await fetchJson<{ message: string }>("/reset", {
-          method: "POST",
-        });
-      }
-    }
-  },
+  resetDemo: () =>
+    fetchJson<SessionResetResponse>("/session/reset", {
+      method: "POST",
+    }),
 };

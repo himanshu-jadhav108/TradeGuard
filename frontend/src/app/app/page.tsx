@@ -8,9 +8,9 @@ import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { TradeProposal, OrderRecord } from "@/lib/types";
 import { useRefresh } from "@/lib/refresh-context";
 import Link from "next/link";
-import { ArrowRight, Terminal } from "lucide-react";
+import { ArrowRight, Terminal, Shield, Lock } from "lucide-react";
 
-export default function OverviewPage() {
+export default function TradeDeskPage() {
   const { refreshKey, triggerRefresh } = useRefresh();
   const [activeProposal, setActiveProposal] = useState<TradeProposal | null>(
     null
@@ -26,34 +26,34 @@ export default function OverviewPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-            Overview Dashboard
+            Trade Desk
           </h1>
           <p className="text-xs text-fg-subtle mt-1 font-mono">
-            Settled positions · Deterministic risk execution · Real-time audit
+            Natural language intent · Server-enforced safety guardrails · Explicit human confirmation
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/app/trade"
-            className="rounded-xl bg-accent px-4 py-2.5 text-xs font-semibold text-white shadow-subtle hover:bg-accent-dark transition-all flex items-center gap-1.5"
-          >
-            <span>Open Dedicated Trade Desk</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <div className="flex items-center gap-1.5 rounded-full border border-border bg-canvas-subtle px-3 py-1 text-xs">
+            <Lock className="h-3 w-3 text-accent" />
+            <span className="font-mono text-[11px] font-medium text-fg-muted">
+              Pre-Trade Safety Layer Active
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Portfolio Metrics & Allocation Charts */}
+      {/* Portfolio Metrics & Allocation Breakdown */}
       <PortfolioOverview refreshTrigger={refreshKey} />
 
-      {/* Active Trade Review or Intent Execution Section */}
+      {/* Pre-Trade Review Desk (Hero Interactive Workflow) */}
       <div className="space-y-3 pt-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-fg uppercase tracking-wider font-mono">
-            Pre-Trade Review Desk
+          <h2 className="text-sm font-semibold text-fg uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <Shield className="h-4 w-4 text-accent" />
+            <span>Pre-Trade Review Desk</span>
           </h2>
           <span className="text-[11px] font-mono text-fg-subtle">
-            Instant Intent Testing
+            AI interprets · Backend validates · User decides
           </span>
         </div>
 
@@ -70,9 +70,10 @@ export default function OverviewPage() {
                 proposal={activeProposal}
                 onTradeConfirmed={handleOrderConfirmed}
                 onCancelled={() => setActiveProposal(null)}
+                onRefreshQuote={(newProp) => setActiveProposal(newProp)}
               />
             ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 sm:p-12 text-center text-fg-subtle flex flex-col items-center justify-center min-h-[320px] shadow-subtle">
+              <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 sm:p-12 text-center text-fg-subtle flex flex-col items-center justify-center min-h-[360px] shadow-subtle">
                 <div className="h-10 w-10 rounded-xl bg-canvas-subtle border border-border flex items-center justify-center mb-3 text-fg-muted">
                   <Terminal className="h-5 w-5 text-accent" />
                 </div>
@@ -80,7 +81,7 @@ export default function OverviewPage() {
                   Ready for Trade Intent
                 </h3>
                 <p className="text-xs text-fg-subtle max-w-sm mt-1 leading-relaxed">
-                  Enter an intent like “Buy $500 of BTC” in the composer on the left to evaluate proposal parameters and deterministic risk checks.
+                  Enter an intent like “Buy $500 of SOL” or pick one of the test scenarios on the left to evaluate proposal parameters, TTL quote freshness, and deterministic risk checks.
                 </p>
               </div>
             )}
@@ -88,17 +89,17 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Recent Activity Section */}
+      {/* Recent Activity Log */}
       <div className="space-y-3 pt-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-fg uppercase tracking-wider font-mono">
-            Recent Audit Stream
+            Recent Activity Log
           </h2>
           <Link
             href="/app/activity"
             className="text-xs font-semibold text-accent hover:text-accent-dark transition-colors flex items-center gap-1"
           >
-            <span>View Full Audit Log</span>
+            <span>View Full Log</span>
             <ArrowRight className="h-3 w-3" />
           </Link>
         </div>

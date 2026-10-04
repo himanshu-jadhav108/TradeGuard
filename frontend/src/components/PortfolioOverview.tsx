@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { PortfolioSummary } from "@/lib/types";
 import { api } from "@/lib/api";
-import { Wallet, DollarSign, Activity, RefreshCw } from "lucide-react";
+import { Wallet, DollarSign, Activity, RefreshCw, AlertCircle } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -23,14 +23,17 @@ const ASSET_COLORS: Record<string, string> = {
 export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number }) {
   const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchPortfolio = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await api.getPortfolio();
       setPortfolio(data);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load portfolio:", e);
+      setError(e.message || "Failed to load portfolio");
     } finally {
       setLoading(false);
     }
@@ -45,6 +48,28 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
       <div className="w-full rounded-2xl border border-border bg-surface p-8 text-center text-fg-muted">
         <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2 text-accent" />
         <span className="text-xs">Loading portfolio balances...</span>
+      </div>
+    );
+  }
+
+  if (error && !portfolio) {
+    return (
+      <div className="w-full rounded-2xl border border-danger/30 bg-surface p-8 text-center text-fg-muted space-y-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-danger-surface text-danger mx-auto border border-danger/30">
+          <AlertCircle className="h-5 w-5" />
+        </div>
+        <p className="text-sm font-semibold text-fg">Portfolio Unavailable</p>
+        <p className="text-xs text-fg-subtle max-w-sm mx-auto">
+          Could not connect to the TradeGuard backend service to load current balances.
+        </p>
+        <button
+          type="button"
+          onClick={fetchPortfolio}
+          className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark transition-all inline-flex items-center gap-1.5"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span>Retry</span>
+        </button>
       </div>
     );
   }
@@ -147,15 +172,18 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
         {/* Execution Mode */}
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-card">
           <div className="flex items-center justify-between text-fg-muted mb-1.5">
-            <span className="text-xs font-medium">Gateway Execution Mode</span>
+            <span className="text-xs font-medium">Environment Mode</span>
             <Activity className="h-4 w-4 text-accent" />
           </div>
           <div className="text-xl font-bold tracking-tight text-fg flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
             <span className="font-mono text-sm">{portfolio.mode}</span>
+            <span className="text-xs font-normal text-fg-subtle">
+              ({portfolio.mode === "UAT" ? "True Markets UAT" : "Simulated Demo"})
+            </span>
           </div>
           <span className="mt-2 block text-xs text-fg-muted font-mono text-[11px]">
-            Live quotes · Deterministic settlement
+            Deterministic risk validation enforced
           </span>
         </div>
       </div>
@@ -234,10 +262,10 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
                 <tr className="border-b border-border text-fg-muted text-[11px] font-sans">
                   <th className="pb-3 font-semibold">Asset</th>
                   <th className="pb-3 font-semibold">Quantity</th>
-                  <th className="pb-3 font-semibold">Market Price</th>
+                  <th className="pb-3 font-semibold">Reference Price</th>
                   <th className="pb-3 font-semibold">Total Value</th>
                   <th className="pb-3 font-semibold">Allocation</th>
-                  <th className="pb-3 font-semibold text-right">24h Chg</th>
+                  <th className="pb-3 font-semibold text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -281,13 +309,8 @@ export function PortfolioOverview({ refreshTrigger }: { refreshTrigger?: number 
                         </div>
                       </div>
                     </td>
-                    <td
-                      className={`py-3 text-right font-semibold tabular-nums ${
-                        pos.pnl_24h_pct >= 0 ? "text-accent" : "text-danger"
-                      }`}
-                    >
-                      {pos.pnl_24h_pct >= 0 ? "+" : ""}
-                      {pos.pnl_24h_pct}%
+                    <td className="py-3 text-right font-mono text-[11px] text-accent">
+                      Settled
                     </td>
                   </tr>
                 ))}

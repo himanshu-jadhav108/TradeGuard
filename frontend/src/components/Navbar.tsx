@@ -37,18 +37,16 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
   };
 
   const appNavLinks = [
-    { href: "/app", label: "Overview" },
-    { href: "/app/trade", label: "Trade" },
+    { href: "/app", label: "Trade Desk" },
     { href: "/app/portfolio", label: "Portfolio" },
     { href: "/app/activity", label: "Activity" },
   ];
 
   const landingNavLinks = [
-    { href: "#preview", label: "Product" },
-    { href: "#how-it-works", label: "How It Works" },
-    { href: "#safety-layer", label: "Safety Layer" },
-    { href: "#capabilities", label: "Capabilities" },
-    { href: "#security", label: "Security" },
+    { href: "#preview", label: "Preview" },
+    { href: "#flow", label: "Workflow" },
+    { href: "#philosophy", label: "Philosophy" },
+    { href: "#true-markets", label: "Integration" },
   ];
 
   return (
@@ -70,7 +68,7 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
               TradeGuard
             </span>
             <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold bg-accent-surface text-accent border border-accent/20">
-              UAT / DEMO
+              DEMO · SIMULATED
             </span>
           </div>
         </Link>

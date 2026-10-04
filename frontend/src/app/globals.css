@@ -96,6 +96,60 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Subtle Financial Grid Texture */
+.bg-financial-grid {
+  background-size: 36px 36px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+}
+.dark .bg-financial-grid {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+}
+
+/* Atmospheric Radial Glow */
+.hero-radial-glow {
+  background: radial-gradient(circle 650px at 50% 12%, rgba(13, 148, 136, 0.07), transparent 70%);
+}
+.dark .hero-radial-glow {
+  background: radial-gradient(circle 750px at 50% 10%, rgba(20, 184, 166, 0.075), transparent 75%);
+}
+
+/* Staggered Hero Keyframe Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-hero-1 {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0ms forwards;
+}
+.animate-hero-2 {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 90ms forwards;
+}
+.animate-hero-3 {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 180ms forwards;
+}
+.animate-hero-4 {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 270ms forwards;
+}
+.animate-hero-5 {
+  opacity: 0;
+  animation: fadeInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) 360ms forwards;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -155,5 +209,14 @@ path.recharts-sector:focus {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .animate-hero-1,
+  .animate-hero-2,
+  .animate-hero-3,
+  .animate-hero-4,
+  .animate-hero-5 {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
   }
 }

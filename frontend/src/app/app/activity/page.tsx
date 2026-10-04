@@ -24,17 +24,17 @@ export default function ActivityPage() {
             <span className="text-xs font-mono text-accent">Audit Log</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-            Immutable Audit Trail & Execution Stream
+            TradeGuard Activity & Audit Trail
           </h1>
           <p className="text-xs text-fg-subtle mt-0.5">
-            Chronological cryptographic audit records for intent parsing, deterministic risk checks, and trade settlements
+            Chronological session records for intent interpretations, deterministic risk evaluations, and trade confirmations
           </p>
         </div>
 
         <div className="flex items-center gap-1.5 rounded-full border border-border bg-canvas-subtle px-3 py-1 text-xs">
           <ShieldCheck className="h-3.5 w-3.5 text-accent" />
           <span className="font-mono text-[11px] font-medium text-fg-muted">
-            Tamper-Evident Store
+            Session Activity Log
           </span>
         </div>
       </div>

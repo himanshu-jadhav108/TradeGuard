@@ -33,10 +33,10 @@ export default function PortfolioPage() {
 
         <div>
           <Link
-            href="/app/trade"
+            href="/app"
             className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white shadow-subtle hover:bg-accent-dark transition-all flex items-center gap-1.5"
           >
-            <span>Execute Rebalance</span>
+            <span>Trade Desk</span>
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>

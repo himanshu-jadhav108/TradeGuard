@@ -3,11 +3,13 @@ export type AmountType = "USD" | "ASSET";
 export type RiskLevel = "PASS" | "WARN" | "BLOCK";
 export type OrderStatus =
   | "PENDING_CONFIRMATION"
+  | "CONFIRMING"
   | "SUBMITTED"
   | "PENDING_EXECUTION"
   | "FILLED"
   | "CANCELLED"
-  | "REJECTED";
+  | "REJECTED"
+  | "FAILED";
 
 export interface ParsedIntent {
   asset: string;
@@ -15,7 +17,15 @@ export interface ParsedIntent {
   amount: number;
   amount_type: AmountType;
   raw_prompt: string;
-  confidence: number;
+  interpreter_type?: string;
+}
+
+export interface IntentParseResponse {
+  success: boolean;
+  intent?: ParsedIntent;
+  clarification?: string;
+  suggestions: string[];
+  error?: string;
 }
 
 export interface QuoteSnapshot {
@@ -35,13 +45,17 @@ export interface RiskCheckItem {
   name: string;
   status: RiskLevel;
   message: string;
-  details: Record<string, any>;
+  details?: Record<string, any>;
+  suggested_action?: string;
 }
 
 export interface RiskResult {
   overall_status: RiskLevel;
   can_execute: boolean;
   checks: RiskCheckItem[];
+  warn_requires_ack?: boolean;
+  block_reason?: string;
+  suggested_safe_amount_usd?: number;
 }
 
 export interface PortfolioImpact {
@@ -71,10 +85,12 @@ export interface TradeProposal {
   risk: RiskResult;
   portfolio_impact: PortfolioImpact;
   explanation: string;
+  raw_prompt?: string;
   created_at: string;
   expires_at: string;
   status: string;
   requires_confirmation: boolean;
+  fee_label?: string;
 }
 
 export interface OrderRecord {
@@ -92,6 +108,7 @@ export interface OrderRecord {
   updated_at: string;
   mode: "DEMO" | "UAT";
   audit_id?: string;
+  raw_prompt?: string;
 }
 
 export interface AuditEvent {
@@ -111,7 +128,6 @@ export interface Position {
   price_usd: number;
   value_usd: number;
   allocation_pct: number;
-  pnl_24h_pct: number;
 }
 
 export interface PortfolioSummary {
@@ -121,4 +137,10 @@ export interface PortfolioSummary {
   positions: Position[];
   mode: string;
   as_of: string;
+}
+
+export interface SessionResetResponse {
+  status: string;
+  session_id: string;
+  message: string;
 }

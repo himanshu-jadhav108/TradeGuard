@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TradeProposal, OrderRecord } from "@/lib/types";
 import { api } from "@/lib/api";
 import {
@@ -13,37 +13,78 @@ import {
   XCircle,
   Lock,
   PieChart,
-  DollarSign,
-  Layers,
+  RefreshCw,
+  Info,
 } from "lucide-react";
-import Link from "next/link";
 
 interface TradeReviewCardProps {
   proposal: TradeProposal;
   onTradeConfirmed?: (order: OrderRecord) => void;
   onCancelled?: () => void;
+  onRefreshQuote?: (newProposal: TradeProposal) => void;
 }
 
 export function TradeReviewCard({
   proposal,
   onTradeConfirmed,
   onCancelled,
+  onRefreshQuote,
 }: TradeReviewCardProps) {
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [acknowledgedWarning, setAcknowledgedWarning] = useState(false);
   const [executedOrder, setExecutedOrder] = useState<OrderRecord | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(30);
 
   const isBuy = proposal.side === "BUY";
   const canExecute = proposal.risk.can_execute;
   const overallStatus = proposal.risk.overall_status;
+  const isWarn = overallStatus === "WARN";
+  const isBlock = overallStatus === "BLOCK";
+  const isDemo = proposal.quote.source !== "TRUE_MARKETS_UAT";
+
+  // Live countdown timer based on backend expires_at timestamp
+  useEffect(() => {
+    const updateCountdown = () => {
+      const expiresAt = new Date(proposal.expires_at).getTime();
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+      setSecondsRemaining(remaining);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [proposal.expires_at]);
+
+  const isExpired = secondsRemaining <= 0;
+
+  const handleRefresh = async () => {
+    try {
+      setRefreshing(true);
+      setErrorMessage(null);
+      const promptToUse = proposal.raw_prompt || `${proposal.side} $${proposal.request_amount} of ${proposal.asset}`;
+      const newProposal = await api.createProposal(promptToUse);
+      if (onRefreshQuote) {
+        onRefreshQuote(newProposal);
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || "Failed to refresh market quote.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleConfirm = async () => {
-    if (!canExecute) return;
+    if (!canExecute || isExpired) return;
+    if (isWarn && !acknowledgedWarning) return;
+
     try {
       setConfirming(true);
       setErrorMessage(null);
-      const order = await api.confirmTrade(proposal.id);
+      const order = await api.confirmTrade(proposal.id, acknowledgedWarning);
       setExecutedOrder(order);
       if (onTradeConfirmed) onTradeConfirmed(order);
     } catch (err: any) {
@@ -65,7 +106,7 @@ export function TradeReviewCard({
     }
   };
 
-  // If already executed, render the trade fulfillment receipt
+  // If order was executed, render truthful settlement receipt
   if (executedOrder) {
     return (
       <div className="w-full rounded-2xl border border-accent/40 bg-surface p-6 shadow-card transition-all">
@@ -76,15 +117,39 @@ export function TradeReviewCard({
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-fg">
-                Order Executed & Settled
+                {isDemo ? "Simulated Order Filled" : "Order Executed on True Markets"}
               </h3>
               <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-bold bg-accent-surface text-accent">
                 {executedOrder.status}
               </span>
             </div>
             <p className="text-xs text-fg-subtle">
-              Fulfilled via {executedOrder.mode} environment with deterministic settlement
+              {isDemo
+                ? "Simulated deterministic fill · Account balances updated"
+                : `Gateway order fulfilled · External ID: ${executedOrder.external_order_id}`}
             </p>
+          </div>
+        </div>
+
+        {/* Order Lifecycle Progress */}
+        <div className="my-5 p-4 rounded-xl bg-canvas-subtle border border-border">
+          <div className="flex items-center justify-between text-xs font-mono text-fg-muted mb-2">
+            <span className="text-[11px] uppercase font-sans font-semibold text-fg">
+              Execution Lifecycle
+            </span>
+            <span className="text-[11px] text-accent">Settled</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 h-1.5 rounded-full bg-accent" />
+            <div className="flex-1 h-1.5 rounded-full bg-accent" />
+            <div className="flex-1 h-1.5 rounded-full bg-accent" />
+            <div className="flex-1 h-1.5 rounded-full bg-accent" />
+          </div>
+          <div className="flex items-center justify-between text-[10px] font-mono text-fg-subtle mt-2">
+            <span>Review</span>
+            <span>Confirmed</span>
+            <span>Submitted</span>
+            <span>Filled</span>
           </div>
         </div>
 
@@ -119,32 +184,24 @@ export function TradeReviewCard({
           </div>
           <div>
             <span className="text-fg-subtle block text-[10px] uppercase font-sans">
-              Order Reference
+              Execution Price
             </span>
-            <span className="font-semibold text-fg truncate block">
-              {executedOrder.external_order_id || executedOrder.id}
+            <span className="font-semibold text-fg tabular-nums">
+              ${executedOrder.fill_price ? executedOrder.fill_price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}
             </span>
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-between pt-3 border-t border-border">
-          <Link
-            href="/app/activity"
-            className="flex items-center gap-1.5 text-xs font-semibold text-accent hover:text-accent-dark transition-colors"
-          >
-            <span>View In Immutable Audit Trail</span>
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+        <div className="mt-5 flex justify-end gap-3">
           <button
             type="button"
-            suppressHydrationWarning
             onClick={() => {
               setExecutedOrder(null);
               if (onCancelled) onCancelled();
             }}
-            className="text-xs font-medium text-fg-subtle hover:text-fg transition-colors"
+            className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark transition-all"
           >
-            Compose New Intent
+            Create New Trade Intent
           </button>
         </div>
       </div>
@@ -153,95 +210,163 @@ export function TradeReviewCard({
 
   return (
     <div className="w-full rounded-2xl border border-border bg-surface shadow-card overflow-hidden transition-all">
-      {/* Top Banner: Security and Human Gate Invariant */}
-      <div className="flex items-center justify-between border-b border-border bg-canvas-subtle px-5 py-2.5 text-xs">
-        <div className="flex items-center gap-2 text-fg-muted font-medium">
-          <Lock className="h-3.5 w-3.5 text-accent" />
-          <span className="font-mono text-[11px] uppercase tracking-wider font-semibold">
-            Pre-Trade Review · Human Gate Enforced
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-[11px] font-mono text-fg-subtle">
-          <Clock className="h-3 w-3 text-accent" />
-          <span>Quote TTL: 30s</span>
+      {/* 1. Header Banner & Safety Verdict */}
+      <div
+        className={`p-5 sm:p-6 border-b ${
+          isBlock
+            ? "border-danger/30 bg-danger-surface"
+            : isWarn
+            ? "border-warn/30 bg-warn-surface"
+            : "border-accent/20 bg-accent-surface/30"
+        }`}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
+                isBlock
+                  ? "bg-danger text-white border-danger"
+                  : isWarn
+                  ? "bg-warn text-white border-warn"
+                  : "bg-accent text-white border-accent"
+              }`}
+            >
+              {isBlock ? (
+                <ShieldAlert className="h-5 w-5" />
+              ) : isWarn ? (
+                <AlertTriangle className="h-5 w-5" />
+              ) : (
+                <ShieldCheck className="h-5 w-5" />
+              )}
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-fg-muted font-mono">
+                  Pre-Trade Safety Evaluation
+                </span>
+                <span
+                  className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${
+                    isBlock
+                      ? "bg-danger text-white border-danger"
+                      : isWarn
+                      ? "bg-warn-surface text-warn-text border-warn/30"
+                      : "bg-accent-surface text-accent border-accent/20"
+                  }`}
+                >
+                  {overallStatus}
+                </span>
+                <span className="rounded px-2 py-0.5 font-mono text-[10px] font-medium bg-canvas-subtle border border-border text-fg-subtle">
+                  {isDemo ? "Demo · Simulated" : "True Markets UAT"}
+                </span>
+              </div>
+
+              <h2 className="text-lg sm:text-xl font-bold text-fg mt-1 tracking-tight">
+                {isBlock
+                  ? "Trade Blocked by Safety Guardrail"
+                  : isWarn
+                  ? "Review Warning: Exceeds Concentration Limit"
+                  : "Safety Verified: Safe for Confirmation"}
+              </h2>
+
+              <p className="text-xs text-fg-muted mt-1 leading-relaxed max-w-2xl">
+                {proposal.explanation}
+              </p>
+            </div>
+          </div>
+
+          {/* Freshness Countdown & Refresh Button */}
+          <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
+            <div
+              className={`flex items-center gap-1.5 font-mono text-xs px-2.5 py-1 rounded-lg border ${
+                isExpired
+                  ? "bg-danger-surface text-danger border-danger/30 animate-pulse"
+                  : secondsRemaining <= 10
+                  ? "bg-warn-surface text-warn border-warn/30"
+                  : "bg-canvas-subtle text-fg-muted border-border"
+              }`}
+            >
+              <Clock className="h-3.5 w-3.5" />
+              <span>{isExpired ? "Quote Expired" : `${secondsRemaining}s TTL`}</span>
+            </div>
+
+            {isExpired && (
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="text-xs text-accent hover:text-accent-dark font-medium flex items-center gap-1 transition-colors"
+              >
+                <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+                <span>Refresh Quote</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      <div className="p-5 sm:p-6 space-y-5">
-        {/* Core Order Details: Side, Asset, Notional, Fill */}
-        <div className="flex flex-wrap items-baseline justify-between gap-4 pb-4 border-b border-border">
-          <div>
-            <div className="flex items-center gap-2">
-              <span
-                className={`px-2 py-0.5 rounded font-mono text-xs font-bold border ${
-                  isBuy
-                    ? "bg-accent-surface text-accent border-accent/30"
-                    : "bg-warn-surface text-warn border-warn/30"
-                }`}
-              >
-                {proposal.side}
-              </span>
-              <span className="text-xl font-bold tracking-tight text-fg">
-                {proposal.asset}
-              </span>
-              <span className="text-xs text-fg-subtle font-mono">
-                {proposal.quote.pair}
-              </span>
-            </div>
-            <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-3xl font-bold tracking-tight text-fg tabular-nums font-sans">
-                ${proposal.estimated_notional_usd.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                })}
-              </span>
-              <span className="text-xs font-medium text-fg-subtle">USD</span>
-            </div>
+      <div className="p-5 sm:p-6 space-y-6">
+        {/* 2. Intent Disambiguation: "You said" vs "We understood" */}
+        <div className="rounded-xl border border-border bg-canvas-subtle p-4 font-mono text-xs space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-border text-[11px] font-sans">
+            <span className="font-semibold text-fg-muted uppercase tracking-wider">
+              Intent Translation Grounding
+            </span>
+            <span className="text-fg-subtle text-[10px]">Deterministic Parser</span>
           </div>
 
-          <div className="text-left sm:text-right">
-            <span className="text-[11px] text-fg-subtle uppercase tracking-wider font-semibold block">
-              Estimated Fill
-            </span>
-            <span className="font-mono text-lg font-semibold text-fg tabular-nums">
-              {proposal.estimated_qty.toLocaleString(undefined, {
-                maximumFractionDigits: 6,
-              })}{" "}
-              <span className="text-sm font-normal text-fg-subtle font-sans">
-                {proposal.asset}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <span className="text-[10px] text-fg-subtle uppercase block mb-1 font-sans">
+                You Said:
               </span>
-            </span>
+              <p className="text-fg font-sans italic bg-surface p-2.5 rounded-lg border border-border">
+                “{proposal.raw_prompt || `${proposal.side} $${proposal.request_amount} of ${proposal.asset}`}”
+              </p>
+            </div>
+            <div>
+              <span className="text-[10px] text-fg-subtle uppercase block mb-1 font-sans">
+                We Understood:
+              </span>
+              <div className="flex items-center gap-2 bg-surface p-2.5 rounded-lg border border-border font-bold">
+                <span className={isBuy ? "text-accent" : "text-danger"}>
+                  {proposal.side}
+                </span>
+                <span className="text-fg">{proposal.asset}</span>
+                <span className="text-fg-muted">·</span>
+                <span className="text-fg tabular-nums">
+                  ${proposal.estimated_notional_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD
+                </span>
+                <span className="text-fg-subtle font-normal text-[11px]">
+                  ({proposal.estimated_qty.toLocaleString(undefined, { maximumFractionDigits: 6 })} {proposal.asset})
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Live Market Quote Snapshot */}
-        <div className="rounded-xl border border-border bg-canvas-subtle p-3.5 text-xs">
-          <div className="flex items-center justify-between text-fg-subtle pb-2 border-b border-border font-mono text-[10px]">
-            <span className="uppercase tracking-wider font-bold text-fg-muted font-sans">
-              Market Context
-            </span>
-            <span className="text-accent flex items-center gap-1 font-sans">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              {proposal.quote.source}
+        {/* 3. Market Quote & Parameters */}
+        <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
+              Market Quote & Execution Parameters
+            </h4>
+            <span className="text-[10px] font-mono text-fg-subtle">
+              Quote ID: {proposal.quote.pair}
             </span>
           </div>
-          <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
             <div>
-              <span className="text-fg-subtle block text-[10px]">Mid Price</span>
-              <span className="text-fg font-medium tabular-nums">
-                ${proposal.quote.mid.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                })}
+              <span className="text-fg-subtle block text-[10px]">Quoted Price</span>
+              <span className="text-fg font-bold tabular-nums">
+                ${(isBuy ? proposal.quote.ask : proposal.quote.bid).toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </span>
             </div>
             <div>
-              <span className="text-fg-subtle block text-[10px]">
-                {isBuy ? "Ask (Execution)" : "Bid (Execution)"}
-              </span>
-              <span className="text-fg font-medium tabular-nums">
-                ${(isBuy ? proposal.quote.ask : proposal.quote.bid).toLocaleString(
-                  undefined,
-                  { minimumFractionDigits: 2 }
-                )}
+              <span className="text-fg-subtle block text-[10px]">Estimated Quantity</span>
+              <span className="text-fg font-bold tabular-nums">
+                {proposal.estimated_qty.toLocaleString(undefined, { maximumFractionDigits: 6 })} {proposal.asset}
               </span>
             </div>
             <div>
@@ -251,13 +376,15 @@ export function TradeReviewCard({
               </span>
             </div>
             <div>
-              <span className="text-fg-subtle block text-[10px]">Freshness</span>
-              <span className="text-fg font-medium">30s TTL Window</span>
+              <span className="text-fg-subtle block text-[10px]">Fees</span>
+              <span className="text-fg-muted font-sans text-xs">
+                {proposal.fee_label || "Not modelled in demo"}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Portfolio Impact Modeling */}
+        {/* 4. Portfolio Impact Modeling */}
         <div className="rounded-xl border border-border bg-surface p-4">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted flex items-center gap-1.5">
@@ -265,15 +392,12 @@ export function TradeReviewCard({
               <span>Projected Portfolio Impact</span>
             </h4>
             <span className="text-[11px] font-mono text-fg-subtle">
-              Total: ${proposal.portfolio_impact.total_portfolio_value_before.toLocaleString(
-                undefined,
-                { minimumFractionDigits: 2 }
-              )}
+              Total Portfolio: ${proposal.portfolio_impact.total_portfolio_value_before.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            {/* Asset Allocation Shift */}
+            {/* Allocation Shift */}
             <div className="rounded-lg bg-canvas-subtle p-3 text-xs">
               <div className="flex items-center justify-between text-[11px]">
                 <span className="text-fg-subtle">
@@ -286,7 +410,7 @@ export function TradeReviewCard({
                   <ArrowRight className="h-3 w-3 text-fg-subtle" />
                   <span
                     className={`font-bold tabular-nums ${
-                      proposal.portfolio_impact.projected_allocation_pct > 35
+                      proposal.portfolio_impact.projected_allocation_pct > 40
                         ? "text-warn"
                         : "text-accent"
                     }`}
@@ -298,7 +422,7 @@ export function TradeReviewCard({
               <div className="mt-2 h-1.5 w-full bg-border rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    proposal.portfolio_impact.projected_allocation_pct > 35
+                    proposal.portfolio_impact.projected_allocation_pct > 40
                       ? "bg-warn"
                       : "bg-accent"
                   }`}
@@ -310,6 +434,9 @@ export function TradeReviewCard({
                   }}
                 />
               </div>
+              <span className="mt-1.5 block text-[10px] text-fg-subtle">
+                Guideline threshold: 40% maximum allocation
+              </span>
             </div>
 
             {/* Cash Impact */}
@@ -318,158 +445,190 @@ export function TradeReviewCard({
                 <span className="text-fg-subtle">Cash Balance (USDC)</span>
                 <div className="flex items-center gap-1.5 font-mono">
                   <span className="text-fg font-semibold tabular-nums">
-                    ${proposal.portfolio_impact.cash_before_usd.toLocaleString(
-                      undefined,
-                      { minimumFractionDigits: 2 }
-                    )}
+                    ${proposal.portfolio_impact.cash_before_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                   <ArrowRight className="h-3 w-3 text-fg-subtle" />
                   <span className="text-fg font-bold tabular-nums">
-                    ${proposal.portfolio_impact.cash_after_usd.toLocaleString(
-                      undefined,
-                      { minimumFractionDigits: 2 }
-                    )}
+                    ${proposal.portfolio_impact.cash_after_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
               <span className="mt-2 block text-[10px] text-fg-subtle">
-                Settled balance updated upon confirmation
+                Settled liquid purchasing power
               </span>
             </div>
           </div>
         </div>
 
-        {/* Deterministic Risk Checks Matrix */}
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-              <span>Deterministic Risk Engine Verification</span>
-            </h4>
-            <span
-              className={`rounded px-2 py-0.5 font-mono text-[10px] font-bold border ${
-                overallStatus === "PASS"
-                  ? "bg-accent-surface text-accent border-accent/30"
-                  : overallStatus === "WARN"
-                  ? "bg-warn-surface text-warn border-warn/30"
-                  : "bg-danger-surface text-danger border-danger/30"
-              }`}
-            >
-              {overallStatus}
-            </span>
-          </div>
-
-          <div className="space-y-1.5">
+        {/* 5. Deterministic Risk Checks List */}
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-accent" />
+            <span>Deterministic Risk Rules</span>
+          </h4>
+          <div className="space-y-2">
             {proposal.risk.checks.map((check, idx) => {
-              const isPass = check.status === "PASS";
-              const isWarn = check.status === "WARN";
+              const checkPass = check.status === "PASS";
+              const checkWarn = check.status === "WARN";
               return (
                 <div
                   key={idx}
-                  className={`flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-colors ${
-                    isPass
-                      ? "border-border bg-canvas-subtle"
-                      : isWarn
-                      ? "border-warn/30 bg-warn-surface"
-                      : "border-danger/30 bg-danger-surface"
+                  className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs ${
+                    checkPass
+                      ? "bg-canvas-subtle border-border"
+                      : checkWarn
+                      ? "bg-warn-surface border-warn/30"
+                      : "bg-danger-surface border-danger/30"
                   }`}
                 >
-                  <div className="mt-0.5 shrink-0">
-                    {isPass && (
-                      <CheckCircle className="h-3.5 w-3.5 text-accent" />
+                  <div className="flex items-start gap-2.5">
+                    {checkPass ? (
+                      <CheckCircle className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+                    ) : checkWarn ? (
+                      <AlertTriangle className="h-4 w-4 text-warn shrink-0 mt-0.5" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
                     )}
-                    {isWarn && (
-                      <AlertTriangle className="h-3.5 w-3.5 text-warn" />
-                    )}
-                    {!isPass && !isWarn && (
-                      <XCircle className="h-3.5 w-3.5 text-danger" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-fg text-xs truncate">
+                    <div>
+                      <span className="font-semibold text-fg block">
                         {check.name}
                       </span>
-                      <span
-                        className={`font-mono text-[10px] font-bold shrink-0 ${
-                          isPass
-                            ? "text-accent"
-                            : isWarn
-                            ? "text-warn"
-                            : "text-danger"
-                        }`}
-                      >
-                        {check.status}
-                      </span>
+                      <p className="text-[11px] text-fg-muted mt-0.5">
+                        {check.message}
+                      </p>
+                      {check.suggested_action && (
+                        <p className="text-[11px] text-accent font-medium mt-1">
+                          ↳ {check.suggested_action}
+                        </p>
+                      )}
                     </div>
-                    <p className="text-fg-muted text-[11px] mt-0.5 leading-relaxed">
-                      {check.message}
-                    </p>
                   </div>
+                  <span
+                    className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold border shrink-0 ${
+                      checkPass
+                        ? "bg-accent-surface text-accent border-accent/20"
+                        : checkWarn
+                        ? "bg-warn text-white border-warn"
+                        : "bg-danger text-white border-danger"
+                    }`}
+                  >
+                    {check.status}
+                  </span>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Explainable Proposal Summary */}
-        <div className="rounded-xl border border-border bg-canvas-subtle p-3 text-xs">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-fg-subtle block mb-1">
-            System Rationale
-          </span>
-          <p className="text-fg-muted leading-relaxed text-[11px]">
-            {proposal.explanation}
-          </p>
-        </div>
-
-        {/* Error notification if confirmation failed */}
-        {errorMessage && (
-          <div className="rounded-lg border border-danger/30 bg-danger-surface p-3 text-xs text-danger flex items-center gap-2">
-            <XCircle className="h-4 w-4 shrink-0" />
-            <span>{errorMessage}</span>
+        {/* 6. Warning Acknowledgement Checkbox (Required for WARN state) */}
+        {isWarn && (
+          <div className="rounded-xl border border-warn/40 bg-warn-surface p-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acknowledgedWarning}
+                onChange={(e) => setAcknowledgedWarning(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-warn text-accent focus:ring-accent"
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-semibold text-fg block">
+                  I understand this trade exceeds my 40% concentration guideline.
+                </span>
+                <span className="text-[11px] text-fg-muted block">
+                  TradeGuard requires explicit human acknowledgement before proceeding with warning-flagged orders.
+                </span>
+              </div>
+            </label>
           </div>
         )}
 
-        {/* Deliberate Confirmation Actions */}
-        <div className="flex items-center gap-3 pt-2">
+        {/* 7. BLOCK Explanation and 1-Click Safe Amount Suggestion */}
+        {isBlock && (
+          <div className="rounded-xl border border-danger/30 bg-danger-surface p-4 space-y-2">
+            <div className="flex items-center gap-2 text-danger font-semibold text-xs">
+              <Lock className="h-4 w-4" />
+              <span>Why execution is blocked</span>
+            </div>
+            <p className="text-xs text-danger-text">
+              {proposal.risk.block_reason || "This order violates server-enforced safety guardrails and cannot be executed."}
+            </p>
+            {proposal.risk.suggested_safe_amount_usd && proposal.risk.suggested_safe_amount_usd > 0 && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const safeAmt = proposal.risk.suggested_safe_amount_usd;
+                    if (safeAmt) {
+                      const newPrompt = `Buy $${safeAmt} of ${proposal.asset}`;
+                      const refreshed = await api.createProposal(newPrompt);
+                      if (onRefreshQuote) onRefreshQuote(refreshed);
+                    }
+                  }}
+                  className="rounded-lg bg-surface border border-danger/30 px-3 py-1.5 text-xs font-semibold text-fg hover:border-accent transition-colors flex items-center gap-1.5"
+                >
+                  <span>Reduce order to safe limit: ${proposal.risk.suggested_safe_amount_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })} USD</span>
+                  <ArrowRight className="h-3.5 w-3.5 text-accent" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="rounded-xl border border-danger/30 bg-danger-surface p-3.5 text-xs text-danger">
+            {errorMessage}
+          </div>
+        )}
+
+        {/* 8. Action Decision Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border">
           <button
             type="button"
-            suppressHydrationWarning
             onClick={handleCancel}
             disabled={cancelling || confirming}
-            className="flex-1 rounded-xl border border-border bg-surface px-4 py-3 text-xs font-semibold text-fg hover:bg-surface-hover transition-colors shadow-subtle"
+            className="w-full sm:w-auto px-4 py-2.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-canvas-subtle rounded-xl transition-all"
           >
-            {cancelling ? "Cancelling..." : "Cancel"}
+            Cancel Review
           </button>
 
-          <button
-            type="button"
-            suppressHydrationWarning
-            onClick={handleConfirm}
-            disabled={!canExecute || confirming || cancelling}
-            className={`flex-1 rounded-xl px-4 py-3 text-xs font-semibold text-white shadow-subtle transition-all flex items-center justify-center gap-2 ${
-              canExecute
-                ? "bg-accent hover:bg-accent-dark"
-                : "bg-fg-subtle opacity-40 cursor-not-allowed"
-            }`}
-          >
-            {confirming ? (
-              <span className="flex items-center gap-2">
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Executing Order...
-              </span>
-            ) : canExecute ? (
-              <span className="flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5" />
-                <span>Confirm & Execute Trade</span>
-              </span>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            {isExpired ? (
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="w-full sm:w-auto rounded-xl bg-accent px-5 py-2.5 text-xs font-semibold text-white hover:bg-accent-dark transition-all flex items-center justify-center gap-2 shadow-subtle"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+                <span>Refresh Expired Quote</span>
+              </button>
             ) : (
-              <span className="flex items-center gap-1.5">
-                <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Blocked by Risk Engine</span>
-              </span>
+              <button
+                type="button"
+                onClick={handleConfirm}
+                disabled={!canExecute || confirming || (isWarn && !acknowledgedWarning) || isExpired}
+                className={`w-full sm:w-auto rounded-xl px-6 py-2.5 text-xs font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-subtle ${
+                  !canExecute || (isWarn && !acknowledgedWarning)
+                    ? "bg-fg-muted/40 cursor-not-allowed opacity-60"
+                    : isWarn
+                    ? "bg-warn hover:bg-warn/90"
+                    : "bg-accent hover:bg-accent-dark"
+                }`}
+              >
+                {confirming ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span>Confirming...</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-3.5 w-3.5" />
+                    <span>{isDemo ? "Confirm simulated trade" : "Confirm trade"}</span>
+                  </>
+                )}
+              </button>
             )}
-          </button>
+          </div>
         </div>
       </div>
     </div>
