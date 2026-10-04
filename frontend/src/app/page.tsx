@@ -530,7 +530,39 @@ export default function LandingPage() {
         </section>
 
         {/* ========================================================================= */}
-        {/* 5. FINAL CALL TO ACTION                                                  */}
+        {/* 5. PRODUCT DEMO VIDEO SECTION                                            */}
+        {/* ========================================================================= */}
+        <section id="demo" className="space-y-6 scroll-mt-28">
+          <div className="text-center space-y-2 max-w-xl mx-auto">
+            <span className="text-[11px] font-mono uppercase tracking-wider text-accent font-semibold">
+              Product Walkthrough
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
+              See TradeGuard in action.
+            </h2>
+            <p className="text-xs sm:text-sm text-fg-subtle">
+              From natural-language intent to validated execution.
+            </p>
+          </div>
+
+          <div className="max-w-4xl mx-auto">
+            <div className="rounded-2xl border border-border bg-surface p-2 sm:p-3 shadow-elevated">
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-canvas-subtle">
+                <iframe
+                  src="https://www.youtube.com/embed/BGDGehrNNOg"
+                  title="TradeGuard — Think Before You Trade | Product Demo"
+                  className="absolute inset-0 w-full h-full border-0"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ========================================================================= */}
+        {/* 6. FINAL CALL TO ACTION                                                  */}
         {/* ========================================================================= */}
         <section className="text-center space-y-5 py-8 sm:py-12 border-t border-border">
           <div className="space-y-2 max-w-lg mx-auto">
