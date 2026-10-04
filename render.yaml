@@ -1,0 +1,32 @@
+# ==============================================================================
+# TradeGuard — Render Web Service Blueprint
+# Deploy the backend to Render with one click or via Git repository connect
+# ==============================================================================
+
+services:
+  - type: web
+    name: tradeguard-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: TM_ENV
+        value: demo
+      - key: TM_API_BASE_URL
+        value: https://api.uat.truemarkets.co/v1/gateway
+      - key: CORS_ORIGINS
+        value: "http://localhost:3000,https://tradeguard.vercel.app"
+      - key: MAX_NOTIONAL_USD
+        value: "25000.0"
+      - key: CONCENTRATION_THRESHOLD_PCT
+        value: "0.40"
+      - key: QUOTE_TTL_SECONDS
+        value: "30"
