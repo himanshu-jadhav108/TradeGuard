@@ -151,7 +151,7 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
                   onClick={(e) => scrollToSection(e, link.id)}
                   className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
                     active
-                      ? "bg-surface text-fg font-semibold shadow-subtle border border-border text-accent"
+                      ? "bg-surface text-accent font-semibold shadow-subtle border border-border"
                       : "text-fg-muted hover:text-fg hover:bg-surface-hover"
                   }`}
                 >
