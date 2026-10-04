@@ -9,6 +9,7 @@
 **An institutional-grade, pre-trade safety and verification layer that turns natural-language trade ideas into validated, risk-aware orders with explicit human confirmation.**
 
 [![Live Web App](https://img.shields.io/badge/Live%20App-trade--guard--snowy.vercel.app-0d9488?style=for-the-badge&logo=vercel&logoColor=white)](https://trade-guard-snowy.vercel.app/)
+[![Product Demo](https://img.shields.io/badge/Product%20Demo-YouTube%20Walkthrough-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/BGDGehrNNOg)
 [![Backend API](https://img.shields.io/badge/API%20Live-Render%20Web%20Service-46e3b7?style=for-the-badge&logo=render&logoColor=black)](https://tradeguard-backend-ynuc.onrender.com/api/health)
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-14b8a6.svg?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
@@ -19,7 +20,7 @@
 [![Tests Passing](https://img.shields.io/badge/pytest-20%2F20%20passed-22c55e.svg?style=flat-square&logo=pytest&logoColor=white)](backend/tests/test_backend.py)
 [![Hackathon Submission](https://img.shields.io/badge/True%20Markets-Call%20for%20Builders-f59e0b.svg?style=flat-square)](https://truemarkets.co/)
 
-[Live Deployments](#-live-deployments) • [Product Overview](#what-is-tradeguard) • [The Core Principle](#the-tradeguard-principle) • [How It Works](#how-it-works) • [Safety Architecture](#safety-architecture) • [Trade Review](#trade-review) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Quick Start](#quick-start)
+[Live Deployments](#-live-deployments) • [Product Demo](#-product-demo-video) • [Product Overview](#what-is-tradeguard) • [The Core Principle](#the-tradeguard-principle) • [How It Works](#how-it-works) • [Safety Architecture](#safety-architecture) • [Trade Review](#trade-review) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Quick Start](#quick-start)
 
 ---
 
@@ -32,9 +33,35 @@ TradeGuard is fully deployed and accessible in production across a decoupled edg
 | Surface | Platform | Production URL | Status | Description |
 | :--- | :--- | :--- | :--- | :--- |
 | **Frontend Web App** | **Vercel** | [https://trade-guard-snowy.vercel.app/](https://trade-guard-snowy.vercel.app/) | [![Vercel](https://img.shields.io/badge/Vercel-Active-0d9488?style=flat-square&logo=vercel)](https://trade-guard-snowy.vercel.app/) | Landing page, interactive review stepper, Trade Desk, Portfolio & Activity views |
+| **Product Video Demo** | **YouTube** | [https://youtu.be/BGDGehrNNOg](https://youtu.be/BGDGehrNNOg) | [![YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-FF0000?style=flat-square&logo=youtube)](https://youtu.be/BGDGehrNNOg) | Full architecture & pre-trade risk verification walkthrough |
 | **Backend REST API** | **Render** | [https://tradeguard-backend-ynuc.onrender.com/](https://tradeguard-backend-ynuc.onrender.com/) | [![Render](https://img.shields.io/badge/Render-Online-46e3b7?style=flat-square&logo=render)](https://tradeguard-backend-ynuc.onrender.com/api/health) | FastAPI microservice running deterministic risk engine & quote service |
 | **API Health Check** | **Render** | [`/api/health`](https://tradeguard-backend-ynuc.onrender.com/api/health) | `HTTP 200 OK` | Real-time service status, environment indicators, and configured limits |
 | **Interactive Docs** | **Render** | [`/docs`](https://tradeguard-backend-ynuc.onrender.com/docs) | `Swagger UI` | Complete OpenAPI schema specification with interactive execution console |
+
+---
+
+## 🎬 Product Demo Video
+
+Watch the complete product demonstration of TradeGuard in action:
+
+<div align="center">
+
+[![TradeGuard Product Demo](https://img.youtube.com/vi/BGDGehrNNOg/maxresdefault.jpg)](https://youtu.be/BGDGehrNNOg)
+
+**▶️ [Click to watch the full demonstration on YouTube (https://youtu.be/BGDGehrNNOg)](https://youtu.be/BGDGehrNNOg)**
+
+</div>
+
+> **Walkthrough Highlights:**  
+> • Conversational trade intent translation without LLM balance/execution authority  
+> • Institutional quote binding with active 30-second TTL countdown  
+> • Server-side deterministic `Decimal` risk evaluation (Concentration Guideline Warning)  
+> • Trade Review Hero with projected portfolio allocation shift (45.0% → 58.2%)  
+> • Mandatory human override checkbox before execution authorization  
+> • Atomic SQL state lock (`CONFIRMING` → `EXECUTED`) preventing race conditions  
+> • Real-time Recharts donut portfolio update & immutable audit ledger log  
+
+---
 
 
 ## What is TradeGuard?
@@ -691,6 +718,7 @@ Traditional wealth platforms either force users through complex multi-field trad
 
 - **Himanshu Jadhav**
   - **Live Web Application:** [https://trade-guard-snowy.vercel.app/](https://trade-guard-snowy.vercel.app/)
+  - **Product Video Walkthrough:** [https://youtu.be/BGDGehrNNOg](https://youtu.be/BGDGehrNNOg)
   - **Production Backend API:** [https://tradeguard-backend-ynuc.onrender.com/api/health](https://tradeguard-backend-ynuc.onrender.com/api/health)
   - **Interactive API Documentation:** [https://tradeguard-backend-ynuc.onrender.com/docs](https://tradeguard-backend-ynuc.onrender.com/docs)
   - **GitHub Profile:** [@himanshu-jadhav108](https://github.com/himanshu-jadhav108)
