@@ -19,13 +19,15 @@ import {
   Sparkles,
   RefreshCw,
   ChevronRight,
+  ChevronLeft,
   ExternalLink,
 } from "lucide-react";
 
 export default function LandingPage() {
-  // Interactive preview state allowing judges to inspect each phase of Trade Review
-  const [activeStep, setActiveStep] = useState<number>(3); // Default to full review
+  // Interactive preview state starting at 01 Intent
+  const [activeStep, setActiveStep] = useState<number>(0);
   const [understoodAck, setUnderstoodAck] = useState(false);
+  const [simulatedComplete, setSimulatedComplete] = useState(false);
 
   return (
     <div className="min-h-screen bg-canvas text-fg selection:bg-accent/20 selection:text-accent font-sans relative overflow-x-hidden bg-financial-grid">
@@ -146,7 +148,7 @@ export default function LandingPage() {
                       <button
                         type="button"
                         onClick={() => setActiveStep(1)}
-                        className="px-3 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1"
+                        className="px-3.5 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-accent-dark transition-colors shadow-subtle"
                       >
                         <span>Step 02: Structured Parse</span>
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -185,11 +187,19 @@ export default function LandingPage() {
                         <span>Notional Target:</span> <span className="font-semibold text-fg">$500.00 USD</span>
                       </div>
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveStep(0)}
+                        className="px-3 py-1.5 rounded-lg border border-border bg-surface text-fg-muted font-medium text-xs flex items-center gap-1 hover:text-fg hover:bg-surface/80 transition-colors"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        <span>Step 01: Intent</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setActiveStep(2)}
-                        className="px-3 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1"
+                        className="px-3.5 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-accent-dark transition-colors shadow-subtle"
                       >
                         <span>Step 03: Deterministic Checks</span>
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -236,11 +246,19 @@ export default function LandingPage() {
                         </span>
                       </div>
                     </div>
-                    <div className="flex justify-end">
+                    <div className="flex items-center justify-between pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveStep(1)}
+                        className="px-3 py-1.5 rounded-lg border border-border bg-surface text-fg-muted font-medium text-xs flex items-center gap-1 hover:text-fg hover:bg-surface/80 transition-colors"
+                      >
+                        <ChevronLeft className="h-3.5 w-3.5" />
+                        <span>Step 02: Understood</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => setActiveStep(3)}
-                        className="px-3 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1"
+                        className="px-3.5 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-accent-dark transition-colors shadow-subtle"
                       >
                         <span>Step 04: Complete Review Ticket</span>
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -252,76 +270,117 @@ export default function LandingPage() {
                 {/* STEP 3: Complete Trade Review Hero */}
                 {activeStep === 3 && (
                   <div className="space-y-4 animate-fadeIn">
-                    {/* Verdict */}
-                    <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-fg space-y-1">
-                      <div className="flex items-center gap-2 font-semibold text-amber-500 text-xs">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span>Review needed — Concentration guideline warning</span>
-                      </div>
-                      <p className="text-[11px] text-fg-muted">
-                        BTC exposure would move from 45.0% → 46.7%, above your configured 40.0% limit.
-                      </p>
-                    </div>
-
-                    {/* Intent Translation */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-2.5 rounded-lg border border-border bg-canvas-subtle space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-fg-subtle font-mono block">
-                          You said
-                        </span>
-                        <p className="text-fg font-medium italic">“Buy $500 of BTC”</p>
-                      </div>
-                      <div className="p-2.5 rounded-lg border border-border bg-canvas-subtle space-y-0.5">
-                        <span className="text-[10px] uppercase font-bold text-fg-subtle font-mono block">
-                          We understood
-                        </span>
-                        <p className="text-fg font-mono font-semibold text-accent">
-                          BUY BTC · $500.00 USD
+                    {simulatedComplete ? (
+                      <div className="p-5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-fg space-y-3 text-center">
+                        <div className="inline-flex items-center justify-center p-2 rounded-full bg-emerald-500/20 text-emerald-400 mb-1">
+                          <CheckCircle2 className="h-6 w-6" />
+                        </div>
+                        <h4 className="text-sm font-semibold text-emerald-400">
+                          Simulated Order Confirmed Safely
+                        </h4>
+                        <p className="text-[11px] text-fg-muted max-w-md mx-auto">
+                          Verified: 0.007782 BTC ($500.00 USD) acknowledged with concentration override. User retained deliberate final authority.
                         </p>
+                        <div className="pt-2 flex justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSimulatedComplete(false);
+                              setUnderstoodAck(false);
+                              setActiveStep(0);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-accent text-white font-semibold text-xs flex items-center gap-1.5 hover:bg-accent-dark transition-colors"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            <span>Restart Lifecycle Walkthrough</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Verdict */}
+                        <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-fg space-y-1">
+                          <div className="flex items-center gap-2 font-semibold text-amber-500 text-xs">
+                            <AlertTriangle className="h-4 w-4" />
+                            <span>Review needed — Concentration guideline warning</span>
+                          </div>
+                          <p className="text-[11px] text-fg-muted">
+                            BTC exposure would move from 45.0% → 46.7%, above your configured 40.0% limit.
+                          </p>
+                        </div>
 
-                    {/* Fresh Quote Row with TTL */}
-                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg border border-border bg-surface font-mono text-[11px]">
-                      <div>
-                        <span className="text-fg-subtle block text-[10px]">Quoted Price</span>
-                        <span className="font-semibold text-fg">$64,250.00</span>
-                      </div>
-                      <div>
-                        <span className="text-fg-subtle block text-[10px]">Estimated Qty</span>
-                        <span className="font-semibold text-fg">0.007782 BTC</span>
-                      </div>
-                      <div>
-                        <span className="text-fg-subtle block text-[10px]">Freshness TTL</span>
-                        <span className="font-semibold text-accent flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> 28s
-                        </span>
-                      </div>
-                    </div>
+                        {/* Intent Translation */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-2.5 rounded-lg border border-border bg-canvas-subtle space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-fg-subtle font-mono block">
+                              You said
+                            </span>
+                            <p className="text-fg font-medium italic">“Buy $500 of BTC”</p>
+                          </div>
+                          <div className="p-2.5 rounded-lg border border-border bg-canvas-subtle space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-fg-subtle font-mono block">
+                              We understood
+                            </span>
+                            <p className="text-fg font-mono font-semibold text-accent">
+                              BUY BTC · $500.00 USD
+                            </p>
+                          </div>
+                        </div>
 
-                    {/* Deliberate Confirmation Gate */}
-                    <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-3">
-                      <label className="flex items-center gap-2 text-[11px] text-fg cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={understoodAck}
-                          onChange={(e) => setUnderstoodAck(e.target.checked)}
-                          className="h-3.5 w-3.5 rounded border-border accent-accent cursor-pointer"
-                        />
-                        <span className="font-medium">I understand this warning</span>
-                      </label>
-                      <button
-                        type="button"
-                        disabled={!understoodAck}
-                        className={`px-4 py-2 rounded-lg font-semibold text-xs transition-all shadow-subtle ${
-                          understoodAck
-                            ? "bg-accent text-white hover:bg-accent-dark"
-                            : "bg-surface border border-border text-fg-subtle cursor-not-allowed"
-                        }`}
-                      >
-                        Confirm simulated trade
-                      </button>
-                    </div>
+                        {/* Fresh Quote Row with TTL */}
+                        <div className="grid grid-cols-3 gap-2 p-2.5 rounded-lg border border-border bg-surface font-mono text-[11px]">
+                          <div>
+                            <span className="text-fg-subtle block text-[10px]">Quoted Price</span>
+                            <span className="font-semibold text-fg">$64,250.00</span>
+                          </div>
+                          <div>
+                            <span className="text-fg-subtle block text-[10px]">Estimated Qty</span>
+                            <span className="font-semibold text-fg">0.007782 BTC</span>
+                          </div>
+                          <div>
+                            <span className="text-fg-subtle block text-[10px]">Freshness TTL</span>
+                            <span className="font-semibold text-accent flex items-center gap-1">
+                              <Clock className="h-3 w-3" /> 28s
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Deliberate Confirmation Gate */}
+                        <div className="pt-2 border-t border-border flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setActiveStep(2)}
+                              className="px-2.5 py-1.5 rounded-lg border border-border bg-surface text-fg-muted font-medium text-xs flex items-center gap-1 hover:text-fg hover:bg-surface/80 transition-colors"
+                            >
+                              <ChevronLeft className="h-3.5 w-3.5" />
+                              <span>Step 03: Checks</span>
+                            </button>
+                            <label className="flex items-center gap-2 text-[11px] text-fg cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={understoodAck}
+                                onChange={(e) => setUnderstoodAck(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-border accent-accent cursor-pointer"
+                              />
+                              <span className="font-medium">I understand this warning</span>
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!understoodAck}
+                            onClick={() => setSimulatedComplete(true)}
+                            className={`px-4 py-2 rounded-lg font-semibold text-xs transition-all shadow-subtle ${
+                              understoodAck
+                                ? "bg-accent text-white hover:bg-accent-dark"
+                                : "bg-surface border border-border text-fg-subtle cursor-not-allowed"
+                            }`}
+                          >
+                            Confirm simulated trade
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
