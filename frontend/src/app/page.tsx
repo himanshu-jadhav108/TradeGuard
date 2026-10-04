@@ -30,7 +30,7 @@ export default function LandingPage() {
   const [simulatedComplete, setSimulatedComplete] = useState(false);
 
   return (
-    <div className="min-h-screen bg-canvas text-fg selection:bg-accent/20 selection:text-accent font-sans relative overflow-x-hidden bg-grid-hero">
+    <div className="min-h-screen bg-canvas text-fg selection:bg-accent/20 selection:text-accent font-sans relative overflow-x-clip bg-grid-hero">
       {/* Background Layer 1: Atmospheric Radial Illumination */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-[650px] hero-radial-glow pointer-events-none -z-10" />
 

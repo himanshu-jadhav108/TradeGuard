@@ -43,14 +43,61 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
   ];
 
   const landingNavLinks = [
-    { href: "#preview", label: "Preview" },
-    { href: "#flow", label: "Workflow" },
-    { href: "#philosophy", label: "Philosophy" },
-    { href: "#true-markets", label: "Integration" },
+    { id: "preview", href: "#preview", label: "Preview" },
+    { id: "flow", href: "#flow", label: "Workflow" },
+    { id: "philosophy", href: "#philosophy", label: "Philosophy" },
+    { id: "true-markets", href: "#true-markets", label: "Integration" },
   ];
 
+  const [activeSection, setActiveSection] = useState<string>("");
+
+  React.useEffect(() => {
+    if (isApp) return;
+
+    const sectionIds = ["preview", "flow", "philosophy", "true-markets"];
+    const handleScroll = () => {
+      const scrollPosition = window.scrollY + 160;
+      let current = "";
+      for (const id of sectionIds) {
+        const element = document.getElementById(id);
+        if (element) {
+          const top = element.offsetTop;
+          if (scrollPosition >= top) {
+            current = id;
+          }
+        }
+      }
+      setActiveSection(current);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    // Initial check
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hashId = window.location.hash.replace("#", "");
+      if (sectionIds.includes(hashId)) {
+        setActiveSection(hashId);
+      }
+    } else {
+      handleScroll();
+    }
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [isApp]);
+
+  const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth" });
+      window.history.pushState(null, "", `#${id}`);
+      setActiveSection(id);
+    }
+  };
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur-md transition-colors shadow-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo & Wordmark */}
         <Link href="/" className="flex items-center gap-2.5 group">
@@ -94,16 +141,24 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
             })}
           </nav>
         ) : (
-          <nav className="hidden md:flex items-center gap-6">
-            {landingNavLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className="text-xs font-medium text-fg-muted hover:text-fg transition-colors"
-              >
-                {link.label}
-              </a>
-            ))}
+          <nav className="hidden md:flex items-center gap-1 rounded-lg border border-border bg-canvas-subtle p-1">
+            {landingNavLinks.map((link) => {
+              const active = activeSection === link.id;
+              return (
+                <a
+                  key={link.id}
+                  href={link.href}
+                  onClick={(e) => scrollToSection(e, link.id)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+                    active
+                      ? "bg-surface text-fg font-semibold shadow-subtle border border-border text-accent"
+                      : "text-fg-muted hover:text-fg hover:bg-surface-hover"
+                  }`}
+                >
+                  {link.label}
+                </a>
+              );
+            })}
           </nav>
         )}
 
@@ -232,16 +287,23 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
                     </Link>
                   );
                 })
-              : landingNavLinks.map((link) => (
-                  <a
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="px-3 py-2 text-xs font-medium text-fg-muted hover:text-fg"
-                  >
-                    {link.label}
-                  </a>
-                ))}
+              : landingNavLinks.map((link) => {
+                  const active = activeSection === link.id;
+                  return (
+                    <a
+                      key={link.id}
+                      href={link.href}
+                      onClick={(e) => scrollToSection(e, link.id)}
+                      className={`px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                        active
+                          ? "bg-canvas-subtle text-accent font-semibold border border-border"
+                          : "text-fg-muted hover:text-fg"
+                      }`}
+                    >
+                      {link.label}
+                    </a>
+                  );
+                })}
           </nav>
 
           <div className="pt-3 border-t border-border flex flex-col gap-2">
