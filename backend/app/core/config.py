@@ -1,5 +1,6 @@
-from typing import List, Optional
-from pydantic import ConfigDict, model_validator
+import json
+from typing import List, Optional, Union
+from pydantic import ConfigDict, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -10,8 +11,8 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
 
-    # Allowed CORS Origins
-    CORS_ORIGINS: List[str] = [
+    # Allowed CORS Origins - accepts comma-separated string, JSON array, or list of strings
+    CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
@@ -32,24 +33,22 @@ class Settings(BaseSettings):
     QUOTE_TTL_SECONDS: int = 30
 
     # Supported Assets Allowlist
-    SUPPORTED_ASSETS: List[str] = ["BTC", "ETH", "SOL", "USDC"]
+    SUPPORTED_ASSETS: Union[List[str], str] = ["BTC", "ETH", "SOL", "USDC"]
 
-    @model_validator(mode="before")
+    @field_validator("CORS_ORIGINS", "SUPPORTED_ASSETS", mode="after")
     @classmethod
-    def parse_cors_origins(cls, data):
-        if isinstance(data, dict):
-            cors = data.get("CORS_ORIGINS")
-            if isinstance(cors, str):
-                cors_str = cors.strip()
-                if cors_str.startswith("[") and cors_str.endswith("]"):
-                    try:
-                        import json
-                        data["CORS_ORIGINS"] = json.loads(cors_str)
-                    except Exception:
-                        data["CORS_ORIGINS"] = [o.strip().strip("'\"") for o in cors_str.strip("[]").split(",") if o.strip()]
-                else:
-                    data["CORS_ORIGINS"] = [o.strip().strip("'\"") for o in cors_str.split(",") if o.strip()]
-        return data
+    def assemble_list_origins(cls, v):
+        if isinstance(v, str):
+            v_str = v.strip()
+            if v_str.startswith("[") and v_str.endswith("]"):
+                try:
+                    parsed = json.loads(v_str)
+                    if isinstance(parsed, list):
+                        return [str(o).strip().strip("'\"") for o in parsed if str(o).strip()]
+                except Exception:
+                    pass
+            return [o.strip().strip("'\"") for o in v_str.split(",") if o.strip()]
+        return v
 
     @model_validator(mode="after")
     def enforce_production_security(self):
