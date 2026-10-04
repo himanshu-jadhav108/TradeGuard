@@ -153,9 +153,12 @@ export function TradeComposer({ onProposalCreated }: TradeComposerProps) {
         </div>
 
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-accent font-mono px-1 py-0.5 animate-fadeIn">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
-            <span>{stageText}</span>
+          <div className="flex items-center justify-between text-xs text-accent font-mono px-2.5 py-1.5 rounded-lg bg-accent-surface/60 border border-accent/20 animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+              <span className="font-medium text-accent">{stageText}</span>
+            </div>
+            <span className="text-[10px] text-fg-subtle">Safety Pipeline</span>
           </div>
         )}
 

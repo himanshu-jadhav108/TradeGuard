@@ -18,10 +18,10 @@ export default function PortfolioPage() {
               className="text-xs text-fg-subtle hover:text-fg transition-colors flex items-center gap-1 font-mono"
             >
               <ArrowLeft className="h-3 w-3" />
-              <span>Overview</span>
+              <span>Trade Desk</span>
             </Link>
             <span className="text-fg-subtle text-xs">/</span>
-            <span className="text-xs font-mono text-accent">Holdings</span>
+            <span className="text-xs font-mono text-accent">Portfolio</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
             Portfolio & Asset Holdings

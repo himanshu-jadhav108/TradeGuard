@@ -18,13 +18,13 @@ export default function ActivityPage() {
               className="text-xs text-fg-subtle hover:text-fg transition-colors flex items-center gap-1 font-mono"
             >
               <ArrowLeft className="h-3 w-3" />
-              <span>Overview</span>
+              <span>Trade Desk</span>
             </Link>
             <span className="text-fg-subtle text-xs">/</span>
-            <span className="text-xs font-mono text-accent">Audit Log</span>
+            <span className="text-xs font-mono text-accent">Activity</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
-            TradeGuard Activity & Audit Trail
+            Activity & Audit Log
           </h1>
           <p className="text-xs text-fg-subtle mt-0.5">
             Chronological session records for intent interpretations, deterministic risk evaluations, and trade confirmations

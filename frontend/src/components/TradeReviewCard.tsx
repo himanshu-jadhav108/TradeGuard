@@ -473,7 +473,8 @@ export function TradeReviewCard({
               return (
                 <div
                   key={idx}
-                  className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs ${
+                  style={{ animationDelay: `${idx * 45}ms` }}
+                  className={`flex items-start justify-between gap-3 p-3 rounded-xl border text-xs animate-fadeIn ${
                     checkPass
                       ? "bg-canvas-subtle border-border"
                       : checkWarn

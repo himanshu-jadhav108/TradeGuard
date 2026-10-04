@@ -3,33 +3,30 @@
 import React, { useState } from "react";
 import { TradeComposer } from "@/components/TradeComposer";
 import { TradeReviewCard } from "@/components/TradeReviewCard";
-import { PortfolioOverview } from "@/components/PortfolioOverview";
-import { ActivityTimeline } from "@/components/ActivityTimeline";
+import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
+import { RecentActivityPreview } from "@/components/RecentActivityPreview";
 import { TradeProposal, OrderRecord } from "@/lib/types";
 import { useRefresh } from "@/lib/refresh-context";
-import Link from "next/link";
-import { ArrowRight, Terminal, Shield, Lock } from "lucide-react";
+import { Shield, Lock } from "lucide-react";
 
 export default function TradeDeskPage() {
   const { refreshKey, triggerRefresh } = useRefresh();
-  const [activeProposal, setActiveProposal] = useState<TradeProposal | null>(
-    null
-  );
+  const [activeProposal, setActiveProposal] = useState<TradeProposal | null>(null);
 
   const handleOrderConfirmed = (order: OrderRecord) => {
     triggerRefresh();
   };
 
   return (
-    <div className="space-y-8">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border">
+    <div className="space-y-6">
+      {/* 1. Page Header with Safety Layer Status */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-fg">
             Trade Desk
           </h1>
-          <p className="text-xs text-fg-subtle mt-1 font-mono">
-            Natural language intent · Server-enforced safety guardrails · Explicit human confirmation
+          <p className="text-xs text-fg-subtle mt-0.5 font-mono">
+            Turn natural-language intent into a reviewed order before execution
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -42,14 +39,14 @@ export default function TradeDeskPage() {
         </div>
       </div>
 
-      {/* Portfolio Metrics & Allocation Breakdown */}
-      <PortfolioOverview refreshTrigger={refreshKey} />
+      {/* 2. Compact Portfolio Context Strip (Replaces full portfolio charts) */}
+      <PortfolioContextStrip refreshTrigger={refreshKey} />
 
-      {/* Pre-Trade Review Desk (Hero Interactive Workflow) */}
-      <div className="space-y-3 pt-2">
+      {/* 3. Hero Decision Surface: Trade Composer (25-33%) + Trade Review (67-75%) */}
+      <div className="space-y-3 pt-1">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-fg uppercase tracking-wider font-mono flex items-center gap-1.5">
-            <Shield className="h-4 w-4 text-accent" />
+          <h2 className="text-xs font-semibold text-fg uppercase tracking-wider font-mono flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5 text-accent" />
             <span>Pre-Trade Review Desk</span>
           </h2>
           <span className="text-[11px] font-mono text-fg-subtle">
@@ -57,14 +54,16 @@ export default function TradeDeskPage() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-5 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Secondary: Trade Composer (lg:col-span-4 = ~33% width) */}
+          <div className="lg:col-span-4 space-y-4">
             <TradeComposer
               onProposalCreated={(prop) => setActiveProposal(prop)}
             />
           </div>
 
-          <div className="lg:col-span-7">
+          {/* Primary Hero: Trade Review (lg:col-span-8 = ~67% width) */}
+          <div className="lg:col-span-8">
             {activeProposal ? (
               <TradeReviewCard
                 proposal={activeProposal}
@@ -73,37 +72,69 @@ export default function TradeDeskPage() {
                 onRefreshQuote={(newProp) => setActiveProposal(newProp)}
               />
             ) : (
-              <div className="rounded-2xl border border-dashed border-border bg-surface/50 p-8 sm:p-12 text-center text-fg-subtle flex flex-col items-center justify-center min-h-[360px] shadow-subtle">
-                <div className="h-10 w-10 rounded-xl bg-canvas-subtle border border-border flex items-center justify-center mb-3 text-fg-muted">
-                  <Terminal className="h-5 w-5 text-accent" />
+              <div className="rounded-2xl border border-border bg-surface/75 p-6 sm:p-8 shadow-card flex flex-col justify-between min-h-[420px] precision-rail">
+                {/* Header Strip */}
+                <div className="flex items-center justify-between pb-3 border-b border-border text-xs font-mono">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-accent/60" />
+                    <span className="font-semibold text-fg uppercase tracking-wider text-[11px]">
+                      Pre-Trade Safety Decision Desk
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-fg-subtle px-2 py-0.5 rounded bg-canvas-subtle border border-border">
+                    Awaiting Intent
+                  </span>
                 </div>
-                <h3 className="text-sm font-semibold text-fg">
-                  Ready for Trade Intent
-                </h3>
-                <p className="text-xs text-fg-subtle max-w-sm mt-1 leading-relaxed">
-                  Enter an intent like “Buy $500 of SOL” or pick one of the test scenarios on the left to evaluate proposal parameters, TTL quote freshness, and deterministic risk checks.
-                </p>
+
+                {/* Staging Body */}
+                <div className="my-auto py-8 text-center max-w-md mx-auto space-y-4">
+                  <div className="h-12 w-12 rounded-2xl bg-canvas-subtle border border-border flex items-center justify-center mx-auto text-accent shadow-subtle">
+                    <Shield className="h-6 w-6 text-accent" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-fg tracking-tight">
+                      Ready for Trade Intent
+                    </h3>
+                    <p className="text-xs text-fg-subtle mt-1.5 leading-relaxed">
+                      Enter an intent like “Buy $500 of SOL” or pick a test scenario on the left. TradeGuard will interpret intent, secure a fresh quote, execute deterministic risk rules, and stage a safety ticket for your explicit confirmation.
+                    </p>
+                  </div>
+
+                  {/* 4-Step Pipeline Indicator */}
+                  <div className="grid grid-cols-4 gap-2 pt-2 text-[10px] font-mono text-fg-subtle">
+                    <div className="p-2 rounded-lg bg-canvas-subtle border border-border/80 text-center">
+                      <span className="block font-bold text-fg-muted mb-0.5">01</span>
+                      <span>Intent</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-canvas-subtle border border-border/80 text-center">
+                      <span className="block font-bold text-fg-muted mb-0.5">02</span>
+                      <span>Quote TTL</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-canvas-subtle border border-border/80 text-center">
+                      <span className="block font-bold text-fg-muted mb-0.5">03</span>
+                      <span>Risk Rules</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-canvas-subtle border border-border/80 text-center">
+                      <span className="block font-bold text-fg-muted mb-0.5">04</span>
+                      <span>Confirm</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Principle Strip */}
+                <div className="pt-3 border-t border-border flex items-center justify-between text-[11px] font-mono text-fg-subtle">
+                  <span>Non-bypassable deterministic verification</span>
+                  <span className="text-accent font-medium">User holds final authority</span>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Recent Activity Log */}
-      <div className="space-y-3 pt-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-fg uppercase tracking-wider font-mono">
-            Recent Activity Log
-          </h2>
-          <Link
-            href="/app/activity"
-            className="text-xs font-semibold text-accent hover:text-accent-dark transition-colors flex items-center gap-1"
-          >
-            <span>View Full Log</span>
-            <ArrowRight className="h-3 w-3" />
-          </Link>
-        </div>
-        <ActivityTimeline refreshTrigger={refreshKey} />
+      {/* 4. Tertiary: Compact Recent Activity Preview (Replaces full timeline) */}
+      <div className="pt-2">
+        <RecentActivityPreview refreshTrigger={refreshKey} />
       </div>
     </div>
   );
