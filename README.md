@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/public/branding/tradeguard-logo.svg" alt="TradeGuard Shield" width="72" height="72" />
+<img src="frontend/public/branding/tradeguard-logo.png" alt="TradeGuard Shield" width="80" height="80" />
 
 # TradeGuard
 

@@ -567,10 +567,11 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
               <Image
-                src="/branding/tradeguard-logo.svg"
+                src="/branding/tradeguard-logo.png"
                 alt="TradeGuard"
-                width={18}
-                height={18}
+                width={20}
+                height={20}
+                className="rounded-sm"
               />
               <span className="font-semibold text-fg text-sm">TradeGuard</span>
               <span className="text-fg-subtle font-mono text-[11px]">

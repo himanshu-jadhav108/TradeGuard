@@ -56,11 +56,11 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-surface border border-border group-hover:border-accent/60 transition-colors shadow-subtle">
             <Image
-              src="/branding/tradeguard-logo.svg"
+              src="/branding/tradeguard-logo.png"
               alt="TradeGuard"
-              width={20}
-              height={20}
-              className="drop-shadow-sm"
+              width={22}
+              height={22}
+              className="drop-shadow-sm rounded-sm"
             />
           </div>
           <div className="flex items-center gap-2">

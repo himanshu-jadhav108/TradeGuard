@@ -7,7 +7,12 @@ export const metadata: Metadata = {
   description:
     "AI-assisted execution with live market context, deterministic risk checks, and explicit human control.",
   icons: {
-    icon: "/branding/favicon.png",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/branding/favicon.png", type: "image/png" },
+    ],
+    apple: "/branding/favicon.png",
   },
 };
 
