@@ -171,7 +171,7 @@ export default function LandingPage() {
                         <span className="text-[10px] uppercase font-bold text-accent font-mono block">
                           We understood
                         </span>
-                        <p className="text-fg font-mono font-bold text-sm text-accent">
+                        <p className="font-mono font-bold text-sm text-accent">
                           BUY BTC · $500.00 USD
                         </p>
                       </div>
@@ -321,7 +321,7 @@ export default function LandingPage() {
                             <span className="text-[10px] uppercase font-bold text-fg-subtle font-mono block">
                               We understood
                             </span>
-                            <p className="text-fg font-mono font-semibold text-accent">
+                            <p className="font-mono font-semibold text-accent">
                               BUY BTC · $500.00 USD
                             </p>
                           </div>
