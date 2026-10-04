@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -33,6 +33,29 @@ class Settings(BaseSettings):
 
     # Supported Assets Allowlist
     SUPPORTED_ASSETS: List[str] = ["BTC", "ETH", "SOL", "USDC"]
+
+    @model_validator(mode="before")
+    @classmethod
+    def parse_cors_origins(cls, data):
+        if isinstance(data, dict):
+            cors = data.get("CORS_ORIGINS")
+            if isinstance(cors, str):
+                cors_str = cors.strip()
+                if cors_str.startswith("[") and cors_str.endswith("]"):
+                    try:
+                        import json
+                        data["CORS_ORIGINS"] = json.loads(cors_str)
+                    except Exception:
+                        data["CORS_ORIGINS"] = [o.strip().strip("'\"") for o in cors_str.strip("[]").split(",") if o.strip()]
+                else:
+                    data["CORS_ORIGINS"] = [o.strip().strip("'\"") for o in cors_str.split(",") if o.strip()]
+        return data
+
+    @model_validator(mode="after")
+    def enforce_production_security(self):
+        if self.APP_ENV == "production":
+            self.DEBUG = False
+        return self
 
 
 settings = Settings()

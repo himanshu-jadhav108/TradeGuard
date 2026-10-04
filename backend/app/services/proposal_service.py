@@ -18,6 +18,8 @@ class ProposalService:
     def create_proposal(
         cls, request: TradeProposalCreateRequest, user_id: str = "demo-user-1"
     ) -> TradeProposal:
+        raw_prompt = request.prompt
+
         # 1. Resolve structured intent from prompt or explicit payload
         if request.prompt:
             intent = IntentService.parse_natural_language(request.prompt)
@@ -52,7 +54,7 @@ class ProposalService:
             current_positions=positions,
         )
 
-        # 5. Generate concise, factual explanation based on deterministic values
+        # 5. Generate concise, grounded factual explanation based on deterministic values
         verb = "Acquiring" if side == OrderSide.BUY else "Liquidating"
         price = quote.ask if side == OrderSide.BUY else quote.bid
         explanation = (
@@ -77,10 +79,12 @@ class ProposalService:
             risk=risk_result,
             portfolio_impact=impact,
             explanation=explanation,
+            raw_prompt=raw_prompt,
             created_at=now,
             expires_at=quote.expires_at,
             status="PENDING_CONFIRMATION",
             requires_confirmation=True,
+            fee_label="Not modelled in demo",
         )
 
         # 6. Save to storage
@@ -98,8 +102,8 @@ class ProposalService:
                 "side": side.value,
                 "amount": amount,
                 "amount_type": amount_type.value,
+                "raw_prompt": raw_prompt,
                 "risk_status": risk_result.overall_status.value,
-                "can_execute": risk_result.can_execute,
             },
             timestamp=now,
         )

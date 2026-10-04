@@ -1,4 +1,5 @@
-from typing import Dict, List, Tuple
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Dict, List, Optional, Tuple
 from app.core.config import settings
 from app.domain.models import (
     AmountType,
@@ -10,6 +11,10 @@ from app.domain.models import (
     RiskResult,
 )
 from app.services.quote_service import QuoteService
+
+
+def to_d(val: float | str | int | Decimal) -> Decimal:
+    return Decimal(str(val))
 
 
 class RiskEngine:
@@ -25,23 +30,32 @@ class RiskEngine:
         current_positions: Dict[str, float],
     ) -> Tuple[RiskResult, PortfolioImpact, float, float]:
         """
-        Runs authoritative, deterministic risk checks.
-        Returns:
-          - RiskResult (overall_status, can_execute, checks)
-          - PortfolioImpact
-          - estimated_qty
-          - estimated_notional_usd
+        Runs authoritative, deterministic risk checks using Decimal arithmetic.
+        Evaluates:
+          1. Supported Asset Allowlist
+          2. Quote Freshness (TTL)
+          3. Positive Quantity & Sane Value
+          4. Maximum Order Notional Ceiling ($25,000)
+          5. Cash or Position Sufficiency
+          6. Portfolio Concentration Threshold (40%)
         """
         checks: List[RiskCheckItem] = []
         symbol = asset.upper()
+
+        d_cash = to_d(cash_usd)
+        d_price = to_d(quote.ask if side == OrderSide.BUY else quote.bid)
+        d_req_amount = to_d(request_amount)
+        d_max_notional = to_d(settings.MAX_NOTIONAL_USD)
+        d_concentration_threshold = to_d(settings.CONCENTRATION_THRESHOLD_PCT)
 
         # 1. Asset Support Check
         if symbol not in settings.SUPPORTED_ASSETS:
             checks.append(RiskCheckItem(
                 name="Asset Support",
                 status=RiskLevel.BLOCK,
-                message=f"Asset '{symbol}' is not on the supported trading allowlist.",
-                details={"asset": symbol, "allowed": settings.SUPPORTED_ASSETS}
+                message=f"Asset '{symbol}' is not on the supported institutional allowlist.",
+                details={"asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
+                suggested_action=f"Select a supported asset: {', '.join(settings.SUPPORTED_ASSETS)}",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -55,27 +69,30 @@ class RiskEngine:
             checks.append(RiskCheckItem(
                 name="Quote Freshness",
                 status=RiskLevel.BLOCK,
-                message="Quote has expired or exceeded maximum time-to-live. A new quote is required.",
-                details={"quote_timestamp": quote.timestamp, "expires_at": quote.expires_at}
+                message="Quote has expired or exceeded maximum time-to-live. A new quote must be requested.",
+                details={"quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
+                suggested_action="Refresh quote to retrieve fresh pricing.",
             ))
         else:
             checks.append(RiskCheckItem(
                 name="Quote Freshness",
                 status=RiskLevel.PASS,
-                message="Live market quote is fresh and within the 30-second TTL window.",
+                message="Market quote is fresh and within the 30-second TTL window.",
             ))
 
-        # Quantity and Notional Calculations
-        price = quote.ask if side == OrderSide.BUY else quote.bid
+        # 3. Calculate Quantity and Notional in Decimal
         if request_amount_type == AmountType.USD:
-            notional_usd = request_amount
-            qty = round(request_amount / price, 6)
+            d_notional = d_req_amount
+            d_qty = (d_notional / d_price).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
         else:
-            qty = request_amount
-            notional_usd = round(qty * price, 2)
+            d_qty = d_req_amount.quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            d_notional = (d_qty * d_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        # 3. Positive Quantity / Notional Check
-        if qty <= 0 or notional_usd <= 0:
+        qty = float(d_qty)
+        notional_usd = float(d_notional)
+
+        # Valid Amount Check
+        if d_qty <= Decimal("0") or d_notional <= Decimal("0"):
             checks.append(RiskCheckItem(
                 name="Valid Amount",
                 status=RiskLevel.BLOCK,
@@ -88,97 +105,118 @@ class RiskEngine:
                 message=f"Calculated {qty:,.6f} {symbol} (${notional_usd:,.2f} USD).",
             ))
 
-        # 4. Maximum Order Notional Limit Check
-        if notional_usd > settings.MAX_NOTIONAL_USD:
+        # 4. Maximum Order Notional Limit Check ($25,000)
+        suggested_safe_amount: Optional[float] = None
+        if d_notional > d_max_notional:
+            suggested_safe_amount = float(d_max_notional)
             checks.append(RiskCheckItem(
                 name="Maximum Notional Limit",
                 status=RiskLevel.BLOCK,
-                message=f"Order size of ${notional_usd:,.2f} exceeds strict system ceiling of ${settings.MAX_NOTIONAL_USD:,.2f}.",
-                details={"max_allowed_usd": settings.MAX_NOTIONAL_USD, "requested_usd": notional_usd}
+                message=f"Order size of ${notional_usd:,.2f} exceeds strict system ceiling of ${float(d_max_notional):,.2f}.",
+                details={"max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
+                suggested_action=f"Reduce order size to ${float(d_max_notional):,.2f} or less.",
             ))
         else:
             checks.append(RiskCheckItem(
                 name="Maximum Notional Limit",
                 status=RiskLevel.PASS,
-                message=f"Order notional (${notional_usd:,.2f}) is within maximum threshold of ${settings.MAX_NOTIONAL_USD:,.2f}.",
+                message=f"Order notional (${notional_usd:,.2f}) is within maximum threshold of ${float(d_max_notional):,.2f}.",
             ))
 
         # 5. Balance Sufficiency Check
         if side == OrderSide.BUY:
-            if notional_usd > cash_usd:
-                shortfall = notional_usd - cash_usd
+            if d_notional > d_cash:
+                d_shortfall = d_notional - d_cash
+                if suggested_safe_amount is None or float(d_cash) < suggested_safe_amount:
+                    suggested_safe_amount = float(d_cash)
                 checks.append(RiskCheckItem(
                     name="Balance Sufficiency",
                     status=RiskLevel.BLOCK,
-                    message=f"Insufficient cash balance. Available: ${cash_usd:,.2f}, required: ${notional_usd:,.2f} (shortfall: ${shortfall:,.2f}).",
-                    details={"available_cash": cash_usd, "required_cash": notional_usd}
+                    message=f"Insufficient cash balance. Available: ${float(d_cash):,.2f}, required: ${notional_usd:,.2f} (shortfall: ${float(d_shortfall):,.2f}).",
+                    details={"available_cash": float(d_cash), "required_cash": notional_usd},
+                    suggested_action=f"Reduce buy amount to your available cash of ${float(d_cash):,.2f}.",
                 ))
             else:
                 checks.append(RiskCheckItem(
                     name="Balance Sufficiency",
                     status=RiskLevel.PASS,
-                    message=f"Cash balance of ${cash_usd:,.2f} is sufficient for ${notional_usd:,.2f} purchase.",
+                    message=f"Cash balance of ${float(d_cash):,.2f} is sufficient for ${notional_usd:,.2f} purchase.",
                 ))
         elif side == OrderSide.SELL:
-            current_asset_qty = current_positions.get(symbol, 0.0)
-            if qty > current_asset_qty:
+            d_current_qty = to_d(current_positions.get(symbol, 0.0))
+            if d_qty > d_current_qty:
                 checks.append(RiskCheckItem(
                     name="Position Sufficiency",
                     status=RiskLevel.BLOCK,
-                    message=f"Insufficient asset balance. Owned: {current_asset_qty:,.6f} {symbol}, requested sell: {qty:,.6f} {symbol}.",
-                    details={"available_qty": current_asset_qty, "requested_qty": qty}
+                    message=f"Insufficient asset balance. Owned: {float(d_current_qty):,.6f} {symbol}, requested sell: {qty:,.6f} {symbol}.",
+                    details={"available_qty": float(d_current_qty), "requested_qty": qty},
+                    suggested_action=f"Adjust sell quantity to your owned balance of {float(d_current_qty):,.6f} {symbol}.",
                 ))
             else:
                 checks.append(RiskCheckItem(
                     name="Position Sufficiency",
                     status=RiskLevel.PASS,
-                    message=f"Holding of {current_asset_qty:,.6f} {symbol} is sufficient for sale.",
+                    message=f"Holding of {float(d_current_qty):,.6f} {symbol} is sufficient for sale.",
                 ))
 
-        # Calculate Portfolio Impact & Concentration
-        current_asset_qty = current_positions.get(symbol, 0.0)
-        current_asset_val = current_asset_qty * quote.mid
-        
-        # Calculate total portfolio value before
-        total_val_before = cash_usd
+        # 6. Portfolio Impact & Single Source of Truth Valuation
+        d_curr_asset_qty = to_d(current_positions.get(symbol, 0.0))
+        d_mid_price = to_d(quote.mid)
+        d_current_asset_val = (d_curr_asset_qty * d_mid_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+        # Calculate total portfolio value before from single source of truth (QuoteService.get_price)
+        d_total_val_before = d_cash
         for a, q in current_positions.items():
             if a == symbol:
-                total_val_before += current_asset_val
+                d_total_val_before += d_current_asset_val
             else:
-                # Estimate other values
-                p = 2680.5 if a == "ETH" else (182.25 if a == "SOL" else 1.0)
-                total_val_before += q * p
+                p = to_d(QuoteService.get_price(a))
+                d_total_val_before += (to_d(q) * p).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        curr_alloc_pct = (current_asset_val / total_val_before) if total_val_before > 0 else 0.0
+        d_curr_alloc_pct = (
+            (d_current_asset_val / d_total_val_before * Decimal("100")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            if d_total_val_before > Decimal("0")
+            else Decimal("0.0")
+        )
 
         if side == OrderSide.BUY:
-            projected_qty = round(current_asset_qty + qty, 6)
-            cash_after = round(cash_usd - notional_usd, 2)
+            d_proj_qty = (d_curr_asset_qty + d_qty).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            d_cash_after = (d_cash - d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         else:
-            projected_qty = round(max(0.0, current_asset_qty - qty), 6)
-            cash_after = round(cash_usd + notional_usd, 2)
+            d_proj_qty = max(Decimal("0"), d_curr_asset_qty - d_qty).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            d_cash_after = (d_cash + d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
-        projected_asset_val = projected_qty * quote.mid
-        total_val_after = cash_after + (total_val_before - cash_usd - current_asset_val) + projected_asset_val
-        proj_alloc_pct = (projected_asset_val / total_val_after) if total_val_after > 0 else 0.0
+        d_proj_asset_val = (d_proj_qty * d_mid_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        d_total_val_after = d_cash_after + (d_total_val_before - d_cash - d_current_asset_val) + d_proj_asset_val
+        
+        d_proj_alloc_pct = (
+            (d_proj_asset_val / d_total_val_after * Decimal("100")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
+            if d_total_val_after > Decimal("0")
+            else Decimal("0.0")
+        )
 
-        # 6. Concentration Warning Check
-        if side == OrderSide.BUY and proj_alloc_pct > settings.CONCENTRATION_THRESHOLD_PCT:
+        # 7. Concentration Warning Check (40% Guideline)
+        warn_requires_ack = False
+        concentration_threshold_display = float(d_concentration_threshold * Decimal("100"))
+
+        if side == OrderSide.BUY and (d_proj_alloc_pct / Decimal("100")) > d_concentration_threshold:
+            warn_requires_ack = True
             checks.append(RiskCheckItem(
                 name="Portfolio Concentration",
                 status=RiskLevel.WARN,
-                message=f"Order raises {symbol} concentration to {proj_alloc_pct * 100:.1f}%, exceeding guideline threshold of {settings.CONCENTRATION_THRESHOLD_PCT * 100:.0f}%.",
+                message=f"Order increases {symbol} concentration to {float(d_proj_alloc_pct):.1f}%, exceeding your {concentration_threshold_display:.0f}% guideline threshold.",
                 details={
-                    "current_pct": round(curr_alloc_pct * 100, 1),
-                    "projected_pct": round(proj_alloc_pct * 100, 1),
-                    "threshold_pct": round(settings.CONCENTRATION_THRESHOLD_PCT * 100, 1)
-                }
+                    "current_pct": float(d_curr_alloc_pct),
+                    "projected_pct": float(d_proj_alloc_pct),
+                    "threshold_pct": concentration_threshold_display,
+                },
+                suggested_action=f"Acknowledging this warning allows confirmation, or reduce order size to maintain <{concentration_threshold_display:.0f}% allocation.",
             ))
         else:
             checks.append(RiskCheckItem(
                 name="Portfolio Concentration",
                 status=RiskLevel.PASS,
-                message=f"Projected {symbol} allocation is {proj_alloc_pct * 100:.1f}%, within balanced diversification limits.",
+                message=f"Projected {symbol} allocation is {float(d_proj_alloc_pct):.1f}%, within balanced diversification limits.",
             ))
 
         # Overall Status Determination
@@ -187,24 +225,32 @@ class RiskEngine:
         overall_status = RiskLevel.BLOCK if has_block else (RiskLevel.WARN if has_warn else RiskLevel.PASS)
         can_execute = not has_block
 
+        block_reason = None
+        if has_block:
+            first_block = next(c for c in checks if c.status == RiskLevel.BLOCK)
+            block_reason = first_block.message
+
         impact = PortfolioImpact(
             asset=symbol,
-            current_qty=current_asset_qty,
-            current_value_usd=round(current_asset_val, 2),
-            current_allocation_pct=round(curr_alloc_pct * 100, 1),
-            projected_qty=projected_qty,
-            projected_value_usd=round(projected_asset_val, 2),
-            projected_allocation_pct=round(proj_alloc_pct * 100, 1),
-            cash_before_usd=round(cash_usd, 2),
-            cash_after_usd=round(cash_after, 2),
-            total_portfolio_value_before=round(total_val_before, 2),
-            total_portfolio_value_after=round(total_val_after, 2),
+            current_qty=float(d_curr_asset_qty),
+            current_value_usd=float(d_current_asset_val),
+            current_allocation_pct=float(d_curr_alloc_pct),
+            projected_qty=float(d_proj_qty),
+            projected_value_usd=float(d_proj_asset_val),
+            projected_allocation_pct=float(d_proj_alloc_pct),
+            cash_before_usd=float(d_cash),
+            cash_after_usd=float(d_cash_after),
+            total_portfolio_value_before=float(d_total_val_before),
+            total_portfolio_value_after=float(d_total_val_after),
         )
 
         risk_result = RiskResult(
             overall_status=overall_status,
             can_execute=can_execute,
             checks=checks,
+            warn_requires_ack=warn_requires_ack,
+            block_reason=block_reason,
+            suggested_safe_amount_usd=suggested_safe_amount,
         )
 
         return risk_result, impact, qty, notional_usd

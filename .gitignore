@@ -37,6 +37,9 @@ backend/tradeguard.db
 .env.development.local
 .env.test.local
 .env.production.local
+.env.deployment
+*.env.deployment
+**/.env.deployment
 *.pem
 *.key
 *.cert

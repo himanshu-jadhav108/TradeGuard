@@ -21,11 +21,13 @@ class RiskLevel(str, Enum):
 
 class OrderStatus(str, Enum):
     PENDING_CONFIRMATION = "PENDING_CONFIRMATION"
+    CONFIRMING = "CONFIRMING"
     SUBMITTED = "SUBMITTED"
     PENDING_EXECUTION = "PENDING_EXECUTION"
     FILLED = "FILLED"
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
+    FAILED = "FAILED"
 
 
 class ParsedIntent(BaseModel):
@@ -34,11 +36,19 @@ class ParsedIntent(BaseModel):
     amount: float = Field(gt=0, description="Amount must be positive")
     amount_type: AmountType
     raw_prompt: str
-    confidence: float = 1.0
+    interpreter_type: str = "RULE_BASED"
 
 
 class IntentParseRequest(BaseModel):
     prompt: str
+
+
+class IntentParseResponse(BaseModel):
+    success: bool
+    intent: Optional[ParsedIntent] = None
+    clarification: Optional[str] = None
+    suggestions: List[str] = Field(default_factory=list)
+    error: Optional[str] = None
 
 
 class QuoteSnapshot(BaseModel):
@@ -59,12 +69,16 @@ class RiskCheckItem(BaseModel):
     status: RiskLevel
     message: str
     details: Dict[str, Any] = Field(default_factory=dict)
+    suggested_action: Optional[str] = None
 
 
 class RiskResult(BaseModel):
     overall_status: RiskLevel
     can_execute: bool
     checks: List[RiskCheckItem]
+    warn_requires_ack: bool = False
+    block_reason: Optional[str] = None
+    suggested_safe_amount_usd: Optional[float] = None
 
 
 class PortfolioImpact(BaseModel):
@@ -91,7 +105,7 @@ class TradeProposalCreateRequest(BaseModel):
 
 class TradeProposal(BaseModel):
     id: str
-    user_id: str
+    user_id: str  # Scoped session_id
     asset: str
     side: OrderSide
     request_amount: float
@@ -102,14 +116,18 @@ class TradeProposal(BaseModel):
     risk: RiskResult
     portfolio_impact: PortfolioImpact
     explanation: str
+    raw_prompt: Optional[str] = None
     created_at: str
     expires_at: str
-    status: str  # "PENDING_CONFIRMATION" | "CONFIRMED" | "CANCELLED" | "EXPIRED"
+    status: str  # "PENDING_CONFIRMATION" | "CONFIRMING" | "CONFIRMED" | "CANCELLED" | "EXPIRED"
     requires_confirmation: bool = True
+    fee_estimate_usd: Optional[float] = None
+    fee_label: str = "Not modelled in demo"
 
 
 class TradeConfirmRequest(BaseModel):
     proposal_id: str
+    acknowledged_warnings: bool = False
 
 
 class OrderRecord(BaseModel):
@@ -127,6 +145,7 @@ class OrderRecord(BaseModel):
     updated_at: str
     mode: str  # "DEMO" | "UAT"
     audit_id: Optional[str] = None
+    raw_prompt: Optional[str] = None
 
 
 class AuditEvent(BaseModel):
@@ -146,7 +165,6 @@ class Position(BaseModel):
     price_usd: float
     value_usd: float
     allocation_pct: float
-    pnl_24h_pct: float = 0.0
 
 
 class PortfolioSummary(BaseModel):
@@ -156,3 +174,9 @@ class PortfolioSummary(BaseModel):
     positions: List[Position]
     mode: str
     as_of: str
+
+
+class SessionResetResponse(BaseModel):
+    status: str = "ok"
+    session_id: str
+    message: str

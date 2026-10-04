@@ -7,8 +7,8 @@ from app.domain.models import AuditEvent, OrderRecord, OrderStatus, Position, Tr
 
 DB_PATH = Path(__file__).parent.parent.parent / "tradeguard.db"
 
-
 _db_initialized = False
+
 
 def get_db():
     global _db_initialized
@@ -63,6 +63,7 @@ def init_db():
                 risk_result TEXT NOT NULL,
                 portfolio_impact TEXT NOT NULL,
                 explanation TEXT NOT NULL,
+                raw_prompt TEXT,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
@@ -103,46 +104,52 @@ def init_db():
             );
         """)
 
-    # Seed default demo account if empty
-    seed_demo_account(conn)
+        # Migration: ensure raw_prompt column exists on trade_proposals
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(trade_proposals)")
+        cols = [r["name"] for r in cur.fetchall()]
+        if "raw_prompt" not in cols:
+            conn.execute("ALTER TABLE trade_proposals ADD COLUMN raw_prompt TEXT")
+
+    # Seed baseline default demo account
+    seed_session_account(conn, "demo-user-1", "Default Demo Trader")
     conn.close()
 
 
-def seed_demo_account(conn: sqlite3.Connection):
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM users WHERE id = 'demo-user-1'")
-    if not cur.fetchone():
+def seed_session_account(conn: sqlite3.Connection, session_id: str, name: str = "Demo Trader"):
+    """Seeds an isolated demo account for a specific session."""
+    with conn:
         now = datetime.now(timezone.utc).isoformat()
-        cur.execute("INSERT INTO users (id, name, created_at) VALUES (?, ?, ?)", ("demo-user-1", "Demo Trader", now))
-        cur.execute("INSERT INTO portfolios (user_id, cash_usd, updated_at) VALUES (?, ?, ?)", ("demo-user-1", 10000.0, now))
-        
-        # Initial holdings: 0.15 BTC ($12,000 approx) and 1.5 ETH ($4,500 approx)
-        cur.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, ?, ?, ?)",
-                    ("demo-user-1", "BTC", 0.15, now))
-        cur.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, ?, ?, ?)",
-                    ("demo-user-1", "ETH", 1.5, now))
-        cur.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, ?, ?, ?)",
-                    ("demo-user-1", "SOL", 10.0, now))
+        conn.execute("INSERT OR IGNORE INTO users (id, name, created_at) VALUES (?, ?, ?)", (session_id, name, now))
+        conn.execute("""
+            INSERT INTO portfolios (user_id, cash_usd, updated_at) VALUES (?, 10000.0, ?)
+            ON CONFLICT(user_id) DO NOTHING
+        """, (session_id, now))
 
-        # Initial audit event
-        cur.execute("""
-            INSERT INTO audit_events (id, user_id, event_type, summary, metadata_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            "evt-init-001",
-            "demo-user-1",
-            "ACCOUNT_SEEDED",
-            "Demo portfolio initialized with $10,000.00 cash and initial positions.",
-            json.dumps({"cash": 10000.0, "btc": 0.15, "eth": 1.5, "sol": 10.0}),
-            now
-        ))
-        conn.commit()
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) as cnt FROM positions WHERE user_id = ?", (session_id,))
+        row = cur.fetchone()
+        if row and row["cnt"] == 0:
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'BTC', 0.15, ?)", (session_id, now))
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'ETH', 1.5, ?)", (session_id, now))
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'SOL', 10.0, ?)", (session_id, now))
+
+            conn.execute("""
+                INSERT OR IGNORE INTO audit_events (id, user_id, event_type, summary, metadata_json, created_at)
+                VALUES (?, ?, 'ACCOUNT_SEEDED', 'Demo portfolio initialized with $10,000.00 cash and standard holdings.', ?, ?)
+            """, (f"evt-init-{session_id[:8]}", session_id, json.dumps({"cash": 10000.0, "btc": 0.15, "eth": 1.5, "sol": 10.0}), now))
 
 
-# Repository operations
 class Storage:
     @staticmethod
+    def ensure_session(session_id: str):
+        conn = get_db()
+        seed_session_account(conn, session_id)
+        conn.close()
+
+    @staticmethod
     def get_portfolio(user_id: str = "demo-user-1") -> Dict[str, Any]:
+        Storage.ensure_session(user_id)
         conn = get_db()
         cur = conn.cursor()
         cur.execute("SELECT cash_usd FROM portfolios WHERE user_id = ?", (user_id,))
@@ -156,6 +163,7 @@ class Storage:
 
     @staticmethod
     def update_portfolio(user_id: str, cash_usd: float, positions: Dict[str, float]):
+        Storage.ensure_session(user_id)
         conn = get_db()
         now = datetime.now(timezone.utc).isoformat()
         with conn:
@@ -170,14 +178,15 @@ class Storage:
 
     @staticmethod
     def save_proposal(proposal: TradeProposal):
+        Storage.ensure_session(proposal.user_id)
         conn = get_db()
         with conn:
             conn.execute("""
                 INSERT OR REPLACE INTO trade_proposals (
                     id, user_id, asset, side, request_amount, request_amount_type,
                     estimated_qty, estimated_notional_usd, quote_snapshot, risk_result,
-                    portfolio_impact, explanation, status, created_at, expires_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    portfolio_impact, explanation, raw_prompt, status, created_at, expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 proposal.id,
                 proposal.user_id,
@@ -191,6 +200,7 @@ class Storage:
                 proposal.risk.model_dump_json(),
                 proposal.portfolio_impact.model_dump_json(),
                 proposal.explanation,
+                proposal.raw_prompt,
                 proposal.status,
                 proposal.created_at,
                 proposal.expires_at,
@@ -198,10 +208,13 @@ class Storage:
         conn.close()
 
     @staticmethod
-    def get_proposal(proposal_id: str) -> Optional[TradeProposal]:
+    def get_proposal(proposal_id: str, user_id: Optional[str] = None) -> Optional[TradeProposal]:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM trade_proposals WHERE id = ?", (proposal_id,))
+        if user_id:
+            cur.execute("SELECT * FROM trade_proposals WHERE id = ? AND user_id = ?", (proposal_id, user_id))
+        else:
+            cur.execute("SELECT * FROM trade_proposals WHERE id = ?", (proposal_id,))
         row = cur.fetchone()
         conn.close()
         if not row:
@@ -220,20 +233,43 @@ class Storage:
             risk=RiskResult.model_validate_json(row["risk_result"]),
             portfolio_impact=PortfolioImpact.model_validate_json(row["portfolio_impact"]),
             explanation=row["explanation"],
+            raw_prompt=row["raw_prompt"] if "raw_prompt" in row.keys() else None,
             created_at=row["created_at"],
             expires_at=row["expires_at"],
             status=row["status"],
         )
 
     @staticmethod
-    def update_proposal_status(proposal_id: str, status: str):
+    def claim_proposal_for_confirmation(proposal_id: str, user_id: str) -> bool:
+        """
+        Atomically claims a proposal for execution, transitioning from PENDING_CONFIRMATION to CONFIRMING.
+        Guarantees protection against concurrent double confirmation.
+        """
         conn = get_db()
         with conn:
-            conn.execute("UPDATE trade_proposals SET status = ? WHERE id = ?", (status, proposal_id))
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE trade_proposals
+                SET status = 'CONFIRMING'
+                WHERE id = ? AND user_id = ? AND status = 'PENDING_CONFIRMATION'
+            """, (proposal_id, user_id))
+            claimed = cur.rowcount > 0
+        conn.close()
+        return claimed
+
+    @staticmethod
+    def update_proposal_status(proposal_id: str, status: str, user_id: Optional[str] = None):
+        conn = get_db()
+        with conn:
+            if user_id:
+                conn.execute("UPDATE trade_proposals SET status = ? WHERE id = ? AND user_id = ?", (status, proposal_id, user_id))
+            else:
+                conn.execute("UPDATE trade_proposals SET status = ? WHERE id = ?", (status, proposal_id))
         conn.close()
 
     @staticmethod
     def save_order(order: OrderRecord):
+        Storage.ensure_session(order.user_id)
         conn = get_db()
         with conn:
             conn.execute("""
@@ -253,7 +289,7 @@ class Storage:
                 order.status.value,
                 order.external_order_id,
                 order.fill_price,
-                json.dumps({"mode": order.mode, "audit_id": order.audit_id}),
+                json.dumps({"mode": order.mode, "audit_id": order.audit_id, "raw_prompt": order.raw_prompt}),
                 order.mode,
                 order.created_at,
                 order.updated_at,
@@ -261,10 +297,13 @@ class Storage:
         conn.close()
 
     @staticmethod
-    def get_order(order_id: str) -> Optional[OrderRecord]:
+    def get_order(order_id: str, user_id: Optional[str] = None) -> Optional[OrderRecord]:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
+        if user_id:
+            cur.execute("SELECT * FROM orders WHERE id = ? AND user_id = ?", (order_id, user_id))
+        else:
+            cur.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
         row = cur.fetchone()
         conn.close()
         if not row:
@@ -286,10 +325,12 @@ class Storage:
             updated_at=row["updated_at"],
             mode=row["mode"],
             audit_id=meta.get("audit_id"),
+            raw_prompt=meta.get("raw_prompt"),
         )
 
     @staticmethod
     def save_audit_event(event: AuditEvent):
+        Storage.ensure_session(event.user_id)
         conn = get_db()
         with conn:
             conn.execute("""
@@ -311,6 +352,7 @@ class Storage:
 
     @staticmethod
     def get_audit_events(user_id: str = "demo-user-1", limit: int = 50) -> List[AuditEvent]:
+        Storage.ensure_session(user_id)
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
@@ -332,3 +374,35 @@ class Storage:
             )
             for r in rows
         ]
+
+    @staticmethod
+    def reset_session(session_id: str):
+        """
+        Resets ONLY the requesting session's portfolio, proposals, and orders.
+        Does NOT impact other visitor sessions.
+        """
+        conn = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        with conn:
+            # Delete session proposals and orders
+            conn.execute("DELETE FROM orders WHERE user_id = ?", (session_id,))
+            conn.execute("DELETE FROM trade_proposals WHERE user_id = ?", (session_id,))
+            conn.execute("DELETE FROM audit_events WHERE user_id = ?", (session_id,))
+
+            # Reset portfolio to $10,000 cash and baseline positions
+            conn.execute("""
+                INSERT INTO portfolios (user_id, cash_usd, updated_at) VALUES (?, 10000.0, ?)
+                ON CONFLICT(user_id) DO UPDATE SET cash_usd = 10000.0, updated_at = excluded.updated_at
+            """, (session_id, now))
+
+            conn.execute("DELETE FROM positions WHERE user_id = ?", (session_id,))
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'BTC', 0.15, ?)", (session_id, now))
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'ETH', 1.5, ?)", (session_id, now))
+            conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'SOL', 10.0, ?)", (session_id, now))
+
+            import uuid
+            conn.execute("""
+                INSERT INTO audit_events (id, user_id, event_type, summary, metadata_json, created_at)
+                VALUES (?, ?, 'ACCOUNT_RESET', 'Session demo account reset to initial balances ($10,000 USDC, 0.15 BTC, 1.5 ETH, 10 SOL).', ?, ?)
+            """, (f"evt-reset-{uuid.uuid4().hex[:12]}", session_id, json.dumps({"cash": 10000.0, "btc": 0.15, "eth": 1.5, "sol": 10.0}), now))
+        conn.close()

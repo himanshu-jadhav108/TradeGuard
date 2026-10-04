@@ -3,7 +3,7 @@ from typing import Dict
 from app.core.config import settings
 from app.domain.models import QuoteSnapshot
 
-# Baseline seed prices for deterministic demo execution
+# Single source of truth for baseline demo prices
 DEMO_PRICES: Dict[str, float] = {
     "BTC": 86450.00,
     "ETH": 2680.50,
@@ -14,6 +14,12 @@ DEMO_PRICES: Dict[str, float] = {
 
 class QuoteService:
     @classmethod
+    def get_price(cls, asset: str) -> float:
+        """Returns the canonical reference mid-price for an asset."""
+        symbol = asset.upper()
+        return DEMO_PRICES.get(symbol, 1.0)
+
+    @classmethod
     def get_quote(cls, asset: str) -> QuoteSnapshot:
         symbol = asset.upper()
         if symbol not in DEMO_PRICES and symbol not in settings.SUPPORTED_ASSETS:
@@ -22,17 +28,23 @@ class QuoteService:
         now = datetime.now(timezone.utc)
         expires_at = now + timedelta(seconds=settings.QUOTE_TTL_SECONDS)
 
-        # Baseline mid price
-        base_price = DEMO_PRICES.get(symbol, 100.0)
-        
+        # Canonical reference price
+        base_price = cls.get_price(symbol)
+
         # 0.05% realistic institutional spread
-        half_spread = base_price * 0.00025
+        half_spread = round(base_price * 0.00025, 2)
         bid = round(base_price - half_spread, 2)
         ask = round(base_price + half_spread, 2)
         mid = round(base_price, 2)
         spread_pct = round(((ask - bid) / mid) * 100, 3)
 
-        source = "DEMO_SIMULATOR" if settings.TM_ENV == "demo" else "TRUE_MARKETS_UAT"
+        # Only claim TRUE_MARKETS_UAT if environment is uat and credentials actually exist
+        from app.services.true_markets_client import TrueMarketsClient
+        tm_client = TrueMarketsClient()
+        if settings.TM_ENV == "uat" and tm_client.is_configured():
+            source = "TRUE_MARKETS_UAT"
+        else:
+            source = "DEMO_SIMULATOR"
 
         return QuoteSnapshot(
             pair=f"{symbol}/USDC",
