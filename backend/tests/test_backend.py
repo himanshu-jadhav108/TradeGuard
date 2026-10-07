@@ -794,3 +794,71 @@ async def test_safety_signals_computation_and_endpoint():
     # Both proposals staged in the last 60s
     assert signals_by_id["sig-rate"]["count"] >= 2
 
+
+def test_intent_zero_and_negative_rejection():
+    # 1. $0 rejected
+    res_zero_usd = IntentService.parse_with_clarification("Buy $0 of BTC")
+    assert res_zero_usd.success is False
+    assert "greater than zero" in (res_zero_usd.error or "")
+
+    res_zero_asset = IntentService.parse_with_clarification("Sell 0 ETH")
+    assert res_zero_asset.success is False
+    assert "greater than zero" in (res_zero_asset.error or "")
+
+    # 2. Negative numbers rejected
+    res_neg_usd = IntentService.parse_with_clarification("Buy -$50 of BTC")
+    assert res_neg_usd.success is False
+    assert "cannot be negative" in (res_neg_usd.error or "")
+
+    res_neg_usd2 = IntentService.parse_with_clarification("Buy $-50 of BTC")
+    assert res_neg_usd2.success is False
+    assert "cannot be negative" in (res_neg_usd2.error or "")
+
+    res_neg_asset = IntentService.parse_with_clarification("Sell -1.5 SOL")
+    assert res_neg_asset.success is False
+    assert "cannot be negative" in (res_neg_asset.error or "")
+
+
+def test_trade_proposal_validators_and_valueerror_mapping_to_422():
+    headers = {"X-Session-ID": "test-val-422"}
+
+    # 1. Negative amount via structured endpoint returns 422
+    res_neg = client.post(
+        "/api/trades/proposals",
+        json={"asset": "BTC", "side": "BUY", "amount": -100.0, "amount_type": "USD"},
+        headers=headers,
+    )
+    assert res_neg.status_code == 422
+
+    # 2. Zero amount via structured endpoint returns 422
+    res_zero = client.post(
+        "/api/trades/proposals",
+        json={"asset": "BTC", "side": "BUY", "amount": 0.0, "amount_type": "USD"},
+        headers=headers,
+    )
+    assert res_zero.status_code == 422
+
+    # 3. Unsupported asset via structured endpoint returns 422
+    res_unsupported = client.post(
+        "/api/trades/proposals",
+        json={"asset": "XRP", "side": "BUY", "amount": 100.0, "amount_type": "USD"},
+        headers=headers,
+    )
+    assert res_unsupported.status_code == 422
+
+    # 4. Extreme amount exceeding cap returns 422
+    res_cap = client.post(
+        "/api/trades/proposals",
+        json={"asset": "BTC", "side": "BUY", "amount": 99_000_000.0, "amount_type": "USD"},
+        headers=headers,
+    )
+    assert res_cap.status_code == 422
+
+    # 5. Missing both prompt and structured fields raises ValueError mapped to 422
+    res_empty = client.post(
+        "/api/trades/proposals",
+        json={},
+        headers=headers,
+    )
+    assert res_empty.status_code == 422
+

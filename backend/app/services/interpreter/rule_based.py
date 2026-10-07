@@ -143,10 +143,10 @@ class RuleBasedInterpreter(BaseInterpreter):
 
         # 6. Parse Amount and Currency/Asset Unit
         amount_res = self._extract_amount_and_type(clean, lower, asset)
-        if not amount_res[0]:
+        if amount_res[0] is None:
             return InterpretationResult(
                 success=False,
-                error=amount_res[1],
+                error=amount_res[2] or "Could not extract a valid trade amount and unit from your request.",
                 clarification=amount_res[2],
                 suggestions=amount_res[3],
             )
@@ -154,10 +154,24 @@ class RuleBasedInterpreter(BaseInterpreter):
         amount, amount_type = amount_res[0], amount_res[1]
 
         # Validation: finite positive number
-        if math.isnan(amount) or math.isinf(amount) or amount <= 0:
+        if math.isnan(amount) or math.isinf(amount):
             return InterpretationResult(
                 success=False,
-                error="Trade amount must be a finite positive number greater than zero.",
+                error="Trade amount must be a finite number.",
+            )
+
+        if amount == 0.0:
+            return InterpretationResult(
+                success=False,
+                error="Trade amount must be strictly greater than zero ($0 or 0 quantity is not allowed).",
+                suggestions=[f"Buy $500 of {asset}", f"Buy 0.1 {asset}"],
+            )
+
+        if amount < 0.0:
+            return InterpretationResult(
+                success=False,
+                error="Trade amount cannot be negative. TradeGuard requires positive trade quantities.",
+                suggestions=[f"Buy $500 of {asset}", f"Sell 0.5 {asset}"],
             )
 
         if amount > MAX_SAFE_AMOUNT:
@@ -182,77 +196,94 @@ class RuleBasedInterpreter(BaseInterpreter):
     ) -> Tuple[Optional[float], Optional[AmountType], Optional[str], List[str]]:
         """
         Carefully disambiguates:
-          - Explicit USD: "$500", "$ 500.50", "500 usd", "500 usdc", "500 dollars"
-          - Explicit Asset: "2 btc", "2 bitcoin", "0.5 of btc", "0.5 eth", "10 sol"
+          - Explicit USD: "$500", "$ 1,200.50", "-$500", "$-500", "500 usd", "500 dollars", "500 usdc"
+          - Explicit Asset: "2 btc", "2 bitcoin", "-2 btc", "0.5 of btc", "0.5 eth", "10 sol"
           - Ambiguous bare number: "buy 500 btc" vs "buy $500 of btc"
         Returns (amount, amount_type, error_or_clarification, suggestions)
         """
         asset_aliases = ASSET_ALIASES.get(asset, [asset.lower()])
         alias_pattern = "|".join(re.escape(a) for a in asset_aliases)
 
-        # 1. Explicit USD match: "$500", "$ 1,200.50", "500 usd", "500 dollars", "500 usdc"
-        usd_prefix = re.search(r"\$\s*([0-9,]+(?:\.[0-9]+)?)", original)
-        usd_suffix = re.search(r"([0-9,]+(?:\.[0-9]+)?)\s*(?:usd|usdc|dollars|bucks)\b", lower)
+        # 1. Explicit USD match: "$500", "$ 1,200.50", "-$500", "$-500", "500 usd", "500 dollars", "500 usdc"
+        usd_prefix = re.search(r"(-|–|—)?\s*\$\s*(-|–|—)?\s*([0-9,]+(?:\.[0-9]+)?)", original)
+        usd_suffix = re.search(r"(-|–|—)?\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:usd|usdc|dollars|bucks)\b", lower)
 
         if usd_prefix:
-            raw_val = usd_prefix.group(1).replace(",", "")
+            is_neg = bool(usd_prefix.group(1) or usd_prefix.group(2))
+            raw_val = usd_prefix.group(3).replace(",", "")
             try:
                 val = float(raw_val)
+                if is_neg:
+                    val = -val
                 return val, AmountType.USD, None, []
             except ValueError:
                 pass
 
         if usd_suffix:
-            raw_val = usd_suffix.group(1).replace(",", "")
+            is_neg = bool(usd_suffix.group(1))
+            raw_val = usd_suffix.group(2).replace(",", "")
             try:
                 val = float(raw_val)
+                if is_neg:
+                    val = -val
                 return val, AmountType.USD, None, []
             except ValueError:
                 pass
 
         # 2. Explicit Asset Quantity match:
-        # e.g., "2 bitcoin", "2 btc", "0.5 of btc", "0.5 of bitcoin", "1.5 eth", "10 solana"
+        # e.g., "2 bitcoin", "2 btc", "-2 btc", "0.5 of btc", "0.5 of bitcoin", "1.5 eth", "10 solana"
         asset_qty_match = re.search(
-            rf"([0-9,]+(?:\.[0-9]+)?)\s*(?:of\s+)?(?:{alias_pattern}|tokens|coins|shares)\b",
+            rf"(-|–|—)?\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:of\s+)?(?:{alias_pattern}|tokens|coins|shares)\b",
             lower,
         )
         if asset_qty_match:
-            raw_val = asset_qty_match.group(1).replace(",", "")
+            is_neg = bool(asset_qty_match.group(1))
+            raw_val = asset_qty_match.group(2).replace(",", "")
             try:
                 val = float(raw_val)
+                if is_neg:
+                    val = -val
                 return val, AmountType.ASSET, None, []
             except ValueError:
                 pass
 
         # 3. Check for bare number before or after asset without explicit currency symbol
-        # e.g., "buy btc 500" or "buy 500 btc" (where the alias was matched)
-        # If user wrote "buy 500 btc", step 2 should match if alias was right after number.
-        # But if user wrote "buy $500 of btc", step 1 matched.
-        # What if user wrote "buy 500 of btc" or "buy btc for 500"?
-        bare_of_match = re.search(rf"([0-9,]+(?:\.[0-9]+)?)\s*(?:worth\s+of|worth|of)\s*(?:{alias_pattern})\b", lower)
+        bare_of_match = re.search(
+            rf"(-|–|—)?\s*([0-9,]+(?:\.[0-9]+)?)\s*(?:worth\s+of|worth|of)\s*(?:{alias_pattern})\b",
+            lower,
+        )
         if bare_of_match:
-            # "500 worth of btc" implies currency value
-            raw_val = bare_of_match.group(1).replace(",", "")
+            is_neg = bool(bare_of_match.group(1))
+            raw_val = bare_of_match.group(2).replace(",", "")
             try:
                 val = float(raw_val)
+                if is_neg:
+                    val = -val
                 return val, AmountType.USD, None, []
             except ValueError:
                 pass
 
+        # Check for word-based negation on numbers (e.g. "buy negative 50 btc" or "buy minus $500 btc")
+        has_word_neg = bool(re.search(r"\b(?:negative|minus)\b", lower))
+
         # Any standalone number in the prompt
-        all_numbers = re.findall(r"([0-9,]+(?:\.[0-9]+)?)", clean_str := re.sub(r"\b(?:btc|eth|sol|usdc)\b", "", lower))
+        all_numbers = re.findall(
+            r"((?:-|–|—)?[0-9,]+(?:\.[0-9]+)?)",
+            clean_str := re.sub(r"\b(?:btc|eth|sol|usdc)\b", "", lower),
+        )
         if len(all_numbers) == 1:
-            raw_val = all_numbers[0].replace(",", "")
+            raw_val = all_numbers[0].replace(",", "").replace("–", "-").replace("—", "-")
             try:
                 val = float(raw_val)
-                # If the value is a whole number >= 50 for BTC or ETH, likely intended USD, but ambiguous!
-                # If ambiguous, return clarification rather than guessing!
+                if has_word_neg and val > 0:
+                    val = -val
+                if val <= 0:
+                    return val, AmountType.USD, None, []
                 if val >= 100:
                     clarification = f"I understood you want to trade {asset}, but the unit is ambiguous. Did you mean ${val:,.0f} USD or {val:,.4f} {asset}?"
                     suggestions = [f"Buy ${val:,.0f} of {asset}", f"Buy {val:g} {asset}"]
                     return None, None, clarification, suggestions
                 else:
-                    # Smaller numbers like 0.5, 2, 10 could be tokens
                     clarification = f"Specify whether {val:g} is a USD notional amount (${val:g}) or asset quantity ({val:g} {asset})."
                     suggestions = [f"Buy ${val:g} of {asset}", f"Buy {val:g} {asset}"]
                     return None, None, clarification, suggestions

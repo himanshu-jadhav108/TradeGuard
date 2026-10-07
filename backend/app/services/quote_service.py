@@ -106,9 +106,9 @@ class QuoteService:
                 except TrueMarketsClientError:
                     raise
                 except Exception as e:
-                    logger.error("Unexpected error fetching True Markets quote: %s", e)
+                    logger.error("Unexpected error fetching True Markets quote: %s", type(e).__name__)
                     raise TrueMarketsClientError(
-                        f"Gateway quote failed: {str(e)}",
+                        "Upstream gateway quote failed.",
                         status_code=503,
                         error_code="GATEWAY_UNAVAILABLE",
                     )

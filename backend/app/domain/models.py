@@ -1,6 +1,7 @@
+import math
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class OrderSide(str, Enum):
@@ -103,6 +104,29 @@ class TradeProposalCreateRequest(BaseModel):
     side: Optional[OrderSide] = None
     amount: Optional[float] = None
     amount_type: Optional[AmountType] = None
+
+    @field_validator("asset")
+    @classmethod
+    def validate_asset(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            clean = v.strip().upper()
+            from app.core.config import settings
+            if clean not in settings.SUPPORTED_ASSETS:
+                raise ValueError(f"Asset '{clean}' is not supported. Supported assets: {settings.SUPPORTED_ASSETS}")
+            return clean
+        return v
+
+    @field_validator("amount")
+    @classmethod
+    def validate_amount(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None:
+            if not math.isfinite(v):
+                raise ValueError("Amount must be a finite number.")
+            if v <= 0:
+                raise ValueError("Amount must be strictly greater than zero.")
+            if v > 10_000_000.0:
+                raise ValueError("Amount exceeds maximum safe input ceiling of $10,000,000.")
+        return v
 
 
 class TradeProposal(BaseModel):

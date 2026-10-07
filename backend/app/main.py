@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.api.router import api_router
 from app.core.config import settings
 from app.db.store import init_db
@@ -32,6 +33,14 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    return JSONResponse(
+        status_code=422,
+        content={"detail": str(exc)},
+    )
 
 
 @app.get("/")

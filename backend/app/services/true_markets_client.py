@@ -84,18 +84,18 @@ class TrueMarketsClient:
                     self._auth_token = data.get("token") or data.get("access_token")
                     return self._auth_token or ""
                 else:
-                    logger.warning("True Markets auth failed: %s %s", res.status_code, res.text)
+                    logger.warning("True Markets auth failed: HTTP %s", res.status_code)
                     raise TrueMarketsClientError(
-                        f"Authentication failed: {res.status_code}",
+                        f"Authentication failed: HTTP {res.status_code}",
                         status_code=res.status_code,
-                        error_code="AUTH_FAILED"
+                        error_code="AUTH_FAILED",
                     )
         except httpx.TimeoutException as exc:
-            logger.error("Timeout during True Markets authentication: %s", str(exc))
+            logger.error("Timeout during True Markets authentication")
             raise TrueMarketsClientError("Gateway authentication timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
         except httpx.RequestError as exc:
-            logger.error("Network error during True Markets authentication: %s", str(exc))
-            raise TrueMarketsClientError(f"Gateway connection error: {str(exc)}", status_code=503, error_code="GATEWAY_UNAVAILABLE")
+            logger.error("Network error during True Markets authentication: %s", type(exc).__name__)
+            raise TrueMarketsClientError("Gateway connection error", status_code=503, error_code="GATEWAY_UNAVAILABLE")
 
     async def _ensure_authenticated(self) -> None:
         """Ensures auth token is present before dispatching gateway requests."""
@@ -134,14 +134,15 @@ class TrueMarketsClient:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(url, json=payload, headers=headers)
                 if res.status_code != 200:
-                    raise TrueMarketsClientError(f"Quote error: {res.text}", status_code=res.status_code)
+                    logger.warning("True Markets quote failed: HTTP %s", res.status_code)
+                    raise TrueMarketsClientError(f"Upstream quote request failed: HTTP {res.status_code}", status_code=res.status_code)
                 return res.json()
-        except httpx.TimeoutException as exc:
-            logger.error("Gateway quote timeout: %s", str(exc))
+        except httpx.TimeoutException:
+            logger.error("Gateway quote timeout")
             raise TrueMarketsClientError("Gateway quote timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
         except httpx.RequestError as exc:
-            logger.error("Network error during True Markets quote request: %s", str(exc))
-            raise TrueMarketsClientError(f"Gateway connection error: {str(exc)}", status_code=503, error_code="GATEWAY_UNAVAILABLE")
+            logger.error("Network error during True Markets quote request: %s", type(exc).__name__)
+            raise TrueMarketsClientError("Gateway connection error", status_code=503, error_code="GATEWAY_UNAVAILABLE")
 
     async def create_order(
         self,
@@ -174,14 +175,15 @@ class TrueMarketsClient:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.post(url, json=payload, headers=headers)
                 if res.status_code not in (200, 201):
-                    raise TrueMarketsClientError(f"Order creation failed: {res.text}", status_code=res.status_code)
+                    logger.warning("True Markets order creation failed: HTTP %s", res.status_code)
+                    raise TrueMarketsClientError(f"Upstream order creation failed: HTTP {res.status_code}", status_code=res.status_code)
                 return res.json()
-        except httpx.TimeoutException as exc:
-            logger.error("Gateway order creation timeout: %s", str(exc))
+        except httpx.TimeoutException:
+            logger.error("Gateway order creation timeout")
             raise TrueMarketsClientError("Gateway order creation timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
         except httpx.RequestError as exc:
-            logger.error("Network error during True Markets order creation: %s", str(exc))
-            raise TrueMarketsClientError(f"Gateway connection error: {str(exc)}", status_code=503, error_code="GATEWAY_UNAVAILABLE")
+            logger.error("Network error during True Markets order creation: %s", type(exc).__name__)
+            raise TrueMarketsClientError("Gateway connection error", status_code=503, error_code="GATEWAY_UNAVAILABLE")
 
     async def execute_order(self, order_id: str, signature: Optional[str] = None, user_id: str = "demo-user-1") -> Dict[str, Any]:
         """
@@ -204,14 +206,15 @@ class TrueMarketsClient:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 res = await client.post(url, json=payload, headers=headers)
                 if res.status_code not in (200, 202):
-                    raise TrueMarketsClientError(f"Execution failed: {res.text}", status_code=res.status_code)
+                    logger.warning("True Markets order execution failed: HTTP %s", res.status_code)
+                    raise TrueMarketsClientError(f"Upstream order execution failed: HTTP {res.status_code}", status_code=res.status_code)
                 return res.json()
-        except httpx.TimeoutException as exc:
-            logger.error("Gateway execute timeout: %s", str(exc))
+        except httpx.TimeoutException:
+            logger.error("Gateway execute timeout")
             raise TrueMarketsClientError("Gateway execute timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
         except httpx.RequestError as exc:
-            logger.error("Network error during True Markets order execution: %s", str(exc))
-            raise TrueMarketsClientError(f"Gateway connection error: {str(exc)}", status_code=503, error_code="GATEWAY_UNAVAILABLE")
+            logger.error("Network error during True Markets order execution: %s", type(exc).__name__)
+            raise TrueMarketsClientError("Gateway connection error", status_code=503, error_code="GATEWAY_UNAVAILABLE")
 
     async def get_order_status(self, order_id: str, user_id: str = "demo-user-1") -> Dict[str, Any]:
         """
@@ -228,7 +231,8 @@ class TrueMarketsClient:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 res = await client.get(url, headers=headers)
                 if res.status_code != 200:
-                    raise TrueMarketsClientError(f"Status inquiry failed: {res.text}", status_code=res.status_code)
+                    logger.warning("True Markets status inquiry failed: HTTP %s", res.status_code)
+                    raise TrueMarketsClientError(f"Upstream status check failed: HTTP {res.status_code}", status_code=res.status_code)
                 return res.json()
         except httpx.TimeoutException as exc:
             logger.error("Gateway status inquiry timeout: %s", str(exc))
