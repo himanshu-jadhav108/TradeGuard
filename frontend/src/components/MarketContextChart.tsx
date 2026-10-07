@@ -50,17 +50,25 @@ export function MarketContextChart({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Sync selected asset when proposal changes
+  // Sync selected asset when proposal changes or initialAsset changes
   useEffect(() => {
-    if (activeProposal?.asset && activeProposal.asset !== selectedAsset) {
+    if (activeProposal?.asset) {
       setSelectedAsset(activeProposal.asset);
+    } else if (initialAsset && initialAsset !== selectedAsset) {
+      setSelectedAsset(initialAsset);
     }
-  }, [activeProposal?.asset, selectedAsset]);
+  }, [activeProposal?.asset, initialAsset, selectedAsset]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const priceLineRef = useRef<any>(null);
+
+  // References to read latest proposal and asset inside chart autoscale callback
+  const activeProposalRef = useRef(activeProposal);
+  activeProposalRef.current = activeProposal;
+  const selectedAssetRef = useRef(selectedAsset);
+  selectedAssetRef.current = selectedAsset;
 
   // Detect current theme (dark or light)
   const isDark = useCallback(() => {
@@ -164,6 +172,26 @@ export function MarketContextChart({
       borderVisible: false,
       wickUpColor: upColor,
       wickDownColor: downColor,
+      autoscaleInfoProvider: (original: any) => {
+        const res = original();
+        const currentProposal = activeProposalRef.current;
+        const currentAsset = selectedAssetRef.current;
+        if (currentProposal && currentProposal.asset === currentAsset && currentProposal.quote) {
+          const rawPrice =
+            currentProposal.side === "BUY"
+              ? (currentProposal.quote.ask ?? currentProposal.quote.mid)
+              : (currentProposal.quote.bid ?? currentProposal.quote.mid);
+          if (typeof rawPrice === "number" && rawPrice > 0 && res?.priceRange) {
+            return {
+              priceRange: {
+                minValue: Math.min(res.priceRange.minValue, rawPrice * 0.997),
+                maxValue: Math.max(res.priceRange.maxValue, rawPrice * 1.003),
+              },
+            };
+          }
+        }
+        return res;
+      },
     });
 
     chartRef.current = chart;
@@ -264,9 +292,9 @@ export function MarketContextChart({
     if (activeProposal && activeProposal.asset === selectedAsset && activeProposal.quote) {
       const rawPrice =
         activeProposal.side === "BUY"
-          ? activeProposal.quote.ask
-          : activeProposal.quote.bid;
-      const entryPrice = typeof rawPrice === "number" ? rawPrice : null;
+          ? (activeProposal.quote.ask ?? activeProposal.quote.mid)
+          : (activeProposal.quote.bid ?? activeProposal.quote.mid);
+      const entryPrice = typeof rawPrice === "number" && rawPrice > 0 ? rawPrice : null;
 
       if (entryPrice !== null) {
         try {
@@ -276,15 +304,19 @@ export function MarketContextChart({
             lineWidth: 2,
             lineStyle: LineStyle.Dashed,
             axisLabelVisible: true,
-            title: `Proposed Entry ($${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+            title: `Proposed Entry ($${entryPrice.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: entryPrice < 10 ? 4 : 2,
+            })})`,
           });
           priceLineRef.current = line;
+          chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
         } catch (e) {
           console.warn("Failed to create proposed trade price line:", e);
         }
       }
     }
-  }, [activeProposal, selectedAsset]);
+  }, [activeProposal, selectedAsset, marketData]);
 
   const handleAssetChange = (asset: string) => {
     setSelectedAsset(asset);
@@ -464,13 +496,28 @@ export function MarketContextChart({
           <span className="text-fg-muted">({selectedAsset} / {selectedTimeframe} · {TIMEFRAMES.find(t => t.label === selectedTimeframe)?.resolution})</span>
         </div>
 
-        {activeProposal && activeProposal.asset === selectedAsset && typeof activeProposal.quote?.mid === "number" ? (
-          <div className="flex items-center gap-1.5 text-cyan-500 font-semibold">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 animate-pulse" />
+        {activeProposal && activeProposal.asset === selectedAsset && typeof (activeProposal.quote?.ask ?? activeProposal.quote?.mid) === "number" ? (
+          <div className="flex items-center gap-1.5 text-cyan-400 font-semibold bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20">
+            <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
             <span>
-              Proposed Entry Line: ${activeProposal.quote.mid.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              Proposed Entry Line: ${(
+                activeProposal.side === "BUY"
+                  ? (activeProposal.quote.ask ?? activeProposal.quote.mid)
+                  : (activeProposal.quote.bid ?? activeProposal.quote.mid)
+              ).toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </span>
           </div>
+        ) : activeProposal ? (
+          <button
+            type="button"
+            onClick={() => handleAssetChange(activeProposal.asset)}
+            className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 transition-colors text-[11px] underline underline-offset-2"
+          >
+            <span>Switch to {activeProposal.asset} to view proposed entry line →</span>
+          </button>
         ) : (
           <span className="text-fg-subtle">
             AI interprets · Backend validates · User decides
