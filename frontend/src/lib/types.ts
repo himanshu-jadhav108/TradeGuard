@@ -43,12 +43,41 @@ export interface QuoteSnapshot {
   age_seconds?: number;
 }
 
+export interface OHLCBucket {
+  time: number;
+  iso_time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+export interface MarketCandlesResponse {
+  asset: string;
+  window: string;
+  resolution: string;
+  current_price?: number;
+  price_change?: number;
+  price_change_pct?: number;
+  high?: number;
+  low?: number;
+  latest_timestamp?: string;
+  candles: OHLCBucket[];
+  freshness_seconds?: number;
+  is_available: boolean;
+  status_label: string;
+  error?: string;
+}
+
 export interface RiskCheckItem {
   name: string;
   status: RiskLevel;
   message: string;
   details?: Record<string, any>;
   suggested_action?: string;
+  why_it_matters?: string;
+  what_you_can_do?: string;
 }
 
 export interface RiskResult {

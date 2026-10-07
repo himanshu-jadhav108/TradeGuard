@@ -1,6 +1,7 @@
 import {
   AuditEvent,
   IntentParseResponse,
+  MarketCandlesResponse,
   OrderRecord,
   PortfolioSummary,
   SafetySignalsReport,
@@ -148,6 +149,12 @@ export const api = {
 
   getSafetySignals: () =>
     fetchJson<SafetySignalsReport>("/safety-signals", undefined, true),
+
+  getMarketCandles: (asset: string, window: string = "1d", resolution?: string) => {
+    const params = new URLSearchParams({ asset, window });
+    if (resolution) params.set("resolution", resolution);
+    return fetchJson<MarketCandlesResponse>(`/market/candles?${params.toString()}`, undefined, true);
+  },
 
   resetDemo: () =>
     fetchJson<SessionResetResponse>("/session/reset", {

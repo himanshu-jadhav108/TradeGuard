@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { TradeComposer } from "@/components/TradeComposer";
 import { TradeReviewCard } from "@/components/TradeReviewCard";
+import { MarketContextChart } from "@/components/MarketContextChart";
 import { PortfolioContextStrip } from "@/components/PortfolioContextStrip";
 import { RecentActivityPreview } from "@/components/RecentActivityPreview";
 import { TradeProposal, OrderRecord } from "@/lib/types";
@@ -12,6 +13,7 @@ import { Shield, Lock } from "lucide-react";
 export default function TradeDeskPage() {
   const { refreshKey, triggerRefresh } = useRefresh();
   const [activeProposal, setActiveProposal] = useState<TradeProposal | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<string>("BTC");
 
   const handleOrderConfirmed = (order: OrderRecord) => {
     triggerRefresh();
@@ -39,40 +41,58 @@ export default function TradeDeskPage() {
         </div>
       </div>
 
-      {/* 2. Compact Portfolio Context Strip (Replaces full portfolio charts) */}
+      {/* 2. Compact Portfolio Context Strip */}
       <PortfolioContextStrip refreshTrigger={refreshKey} />
 
-      {/* 3. Hero Decision Surface: Trade Composer (25-33%) + Trade Review (67-75%) */}
-      <div className="space-y-3 pt-1">
+      {/* 3. Hero Decision Surface: Market Context + Trade Composer + Trade Review */}
+      <div className="space-y-4 pt-1">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-semibold text-fg uppercase tracking-wider font-mono flex items-center gap-1.5">
             <Shield className="h-3.5 w-3.5 text-accent" />
-            <span>Pre-Trade Review Desk</span>
+            <span>Pre-Trade Intelligence & Review Desk</span>
           </h2>
           <span className="text-[11px] font-mono text-fg-subtle">
-            Structured intent · Backend validates · User decides
+            Market Context · Structured intent · Backend validates · User decides
           </span>
         </div>
 
+        {/* Responsive Grid Layout:
+            On Mobile: Market Context -> Trade Composer -> Trade Review
+            On Desktop: Left (Trade Composer), Right (Market Context + Trade Review)
+        */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Secondary: Trade Composer (lg:col-span-4 = ~33% width) */}
-          <div className="lg:col-span-4 space-y-4">
+          {/* Left Column: Trade Composer (order-2 on mobile, order-1 on desktop) */}
+          <div className="order-2 lg:order-1 lg:col-span-4 space-y-4">
             <TradeComposer
-              onProposalCreated={(prop) => setActiveProposal(prop)}
+              onProposalCreated={(prop) => {
+                setActiveProposal(prop);
+                setSelectedAsset(prop.asset);
+              }}
             />
           </div>
 
-          {/* Primary Hero: Trade Review (lg:col-span-8 = ~67% width) */}
-          <div className="lg:col-span-8">
+          {/* Right Column: Market Context + Trade Review (order-1 on mobile, order-2 on desktop) */}
+          <div className="order-1 lg:order-2 lg:col-span-8 space-y-6">
+            {/* Market Context Real OHLC Candlestick Chart */}
+            <MarketContextChart
+              initialAsset={selectedAsset}
+              activeProposal={activeProposal}
+              onSelectAsset={(a) => setSelectedAsset(a)}
+            />
+
+            {/* Core Decision Surface: Trade Review or Staging Staging Card */}
             {activeProposal ? (
               <TradeReviewCard
                 proposal={activeProposal}
                 onTradeConfirmed={handleOrderConfirmed}
                 onCancelled={() => setActiveProposal(null)}
-                onRefreshQuote={(newProp) => setActiveProposal(newProp)}
+                onRefreshQuote={(newProp) => {
+                  setActiveProposal(newProp);
+                  setSelectedAsset(newProp.asset);
+                }}
               />
             ) : (
-              <div className="rounded-2xl border border-border bg-surface/75 p-6 sm:p-8 shadow-card flex flex-col justify-between min-h-[420px] precision-rail">
+              <div className="rounded-2xl border border-border bg-surface/75 p-6 sm:p-8 shadow-card flex flex-col justify-between min-h-[380px] precision-rail">
                 {/* Header Strip */}
                 <div className="flex items-center justify-between pb-3 border-b border-border text-xs font-mono">
                   <div className="flex items-center gap-2">
@@ -132,7 +152,7 @@ export default function TradeDeskPage() {
         </div>
       </div>
 
-      {/* 4. Tertiary: Compact Recent Activity Preview (Replaces full timeline) */}
+      {/* 4. Tertiary: Compact Recent Activity Preview */}
       <div className="pt-2">
         <RecentActivityPreview refreshTrigger={refreshKey} />
       </div>

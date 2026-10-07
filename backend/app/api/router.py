@@ -1,7 +1,8 @@
+import logging
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from app.core.config import settings
 from app.db.store import Storage
@@ -9,6 +10,8 @@ from app.domain.models import (
     AuditEvent,
     IntentParseRequest,
     IntentParseResponse,
+    MarketCandlesResponse,
+    OHLCBucket,
     OrderRecord,
     PortfolioSummary,
     SafetySignalsReport,
@@ -22,9 +25,13 @@ from app.services.order_service import OrderService
 from app.services.portfolio_service import PortfolioService
 from app.services.proposal_service import ProposalService
 from app.services.safety_signal_service import SafetySignalService
-from app.services.true_markets_client import TrueMarketsClient
+from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
 
+logger = logging.getLogger("TradeGuard.Router")
 api_router = APIRouter(prefix="/api")
+
+_CANDLE_CACHE: Dict[str, Tuple[float, MarketCandlesResponse]] = {}
+_CANDLE_CACHE_TTL = 6.0
 
 
 def get_session_id(x_session_id: Optional[str] = Header(None)) -> str:
@@ -63,6 +70,148 @@ def health_check():
         "max_notional_usd": settings.MAX_NOTIONAL_USD,
         "concentration_threshold_pct": settings.CONCENTRATION_THRESHOLD_PCT,
     }
+
+
+@api_router.get("/market/candles", response_model=MarketCandlesResponse)
+async def get_market_candles(
+    asset: str = Query(..., description="Asset symbol (BTC, ETH, SOL, USDC)"),
+    window: str = Query("1d", description="Lookback window: 1h, 4h, 1d, 7d"),
+    resolution: Optional[str] = Query(None, description="Resolution interval: 1m, 5m, 15m, 1h"),
+):
+    """
+    Retrieves real OHLC candles directly from True Markets public market data API.
+    Does not invent or simulate fake candles.
+    Gracefully returns unavailable status if the upstream service is offline.
+    """
+    clean_asset = asset.strip().upper()
+    if clean_asset not in settings.SUPPORTED_ASSETS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Asset '{clean_asset}' is not supported. Supported: {settings.SUPPORTED_ASSETS}",
+        )
+
+    valid_windows = {"1h", "4h", "1d", "7d"}
+    clean_window = window.strip().lower()
+    if clean_window not in valid_windows:
+        clean_window = "1d"
+
+    res_map = {
+        "1h": "1m",
+        "4h": "5m",
+        "1d": "15m",
+        "7d": "1h",
+    }
+    clean_res = (resolution.strip().lower() if resolution else None) or res_map.get(clean_window, "15m")
+
+    cache_key = f"{clean_asset}:{clean_window}:{clean_res}"
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if cache_key in _CANDLE_CACHE:
+        cached_time, cached_resp = _CANDLE_CACHE[cache_key]
+        if (now_ts - cached_time) < _CANDLE_CACHE_TTL:
+            return cached_resp
+
+    tm_client = TrueMarketsClient()
+    try:
+        raw_data = await tm_client.get_candles(
+            symbol=clean_asset,
+            window=clean_window,
+            resolution=clean_res,
+        )
+        raw_candles = raw_data.get("candles", [])
+        if not raw_candles:
+            resp = MarketCandlesResponse(
+                asset=clean_asset,
+                window=clean_window,
+                resolution=clean_res,
+                candles=[],
+                is_available=False,
+                status_label="Market data unavailable",
+                error=f"No candle data returned for {clean_asset}.",
+            )
+            return resp
+
+        buckets: List[OHLCBucket] = []
+        for c in raw_candles:
+            try:
+                iso_t = c["t"]
+                dt = datetime.fromisoformat(iso_t.replace("Z", "+00:00"))
+                unix_t = int(dt.timestamp())
+                buckets.append(OHLCBucket(
+                    time=unix_t,
+                    iso_time=iso_t,
+                    open=float(c["open"]),
+                    high=float(c["high"]),
+                    low=float(c["low"]),
+                    close=float(c["close"]),
+                ))
+            except Exception as pe:
+                logger.debug("Skipping unparseable candle: %s", pe)
+
+        if not buckets:
+            return MarketCandlesResponse(
+                asset=clean_asset,
+                window=clean_window,
+                resolution=clean_res,
+                candles=[],
+                is_available=False,
+                status_label="Market data unavailable",
+                error="Could not parse candle series.",
+            )
+
+        current_price = buckets[-1].close
+        first_open = buckets[0].open
+        price_change = round(current_price - first_open, 4)
+        price_change_pct = round(((current_price - first_open) / first_open) * 100, 2) if first_open > 0 else 0.0
+        high = max(b.high for b in buckets)
+        low = min(b.low for b in buckets)
+        latest_iso = buckets[-1].iso_time
+
+        latest_dt = datetime.fromisoformat(latest_iso.replace("Z", "+00:00"))
+        freshness_secs = max(0, int((datetime.now(timezone.utc) - latest_dt).total_seconds()))
+
+        status_label = "Live market data" if freshness_secs <= 120 else f"Market data updated {freshness_secs}s ago"
+
+        resp = MarketCandlesResponse(
+            asset=clean_asset,
+            window=clean_window,
+            resolution=clean_res,
+            current_price=current_price,
+            price_change=price_change,
+            price_change_pct=price_change_pct,
+            high=high,
+            low=low,
+            latest_timestamp=latest_iso,
+            candles=buckets,
+            freshness_seconds=freshness_secs,
+            is_available=True,
+            status_label=status_label,
+            error=None,
+        )
+        _CANDLE_CACHE[cache_key] = (now_ts, resp)
+        return resp
+
+    except TrueMarketsClientError as tce:
+        logger.warning("Candle retrieval failed for %s: %s", clean_asset, tce)
+        return MarketCandlesResponse(
+            asset=clean_asset,
+            window=clean_window,
+            resolution=clean_res,
+            candles=[],
+            is_available=False,
+            status_label="Market data temporarily unavailable",
+            error=str(tce),
+        )
+    except Exception as exc:
+        logger.error("Unexpected candle retrieval error: %s", exc)
+        return MarketCandlesResponse(
+            asset=clean_asset,
+            window=clean_window,
+            resolution=clean_res,
+            candles=[],
+            is_available=False,
+            status_label="Market data temporarily unavailable",
+            error="Upstream market data query failed.",
+        )
 
 
 @api_router.post("/intent/parse", response_model=IntentParseResponse)

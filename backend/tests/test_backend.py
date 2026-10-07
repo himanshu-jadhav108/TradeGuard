@@ -1208,4 +1208,88 @@ def test_strict_monotonic_event_ordering_across_lifecycle():
         assert e["is_recorded"] is True
 
 
+def test_market_candles_endpoint_success_and_error(monkeypatch):
+    """Test /api/market/candles endpoint returns real candle schema and handles errors."""
+    from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
+
+    # 1. Success mock
+    async def mock_get_candles(self, symbol, window="1d", resolution="15m", asset_class="spot"):
+        return {
+            "symbol": symbol,
+            "window": window,
+            "resolution": resolution,
+            "candles": [
+                {"t": "2026-10-07T12:00:00Z", "open": "83000.0", "high": "83500.0", "low": "82900.0", "close": "83200.0"},
+                {"t": "2026-10-07T12:15:00Z", "open": "83200.0", "high": "83800.0", "low": "83100.0", "close": "83600.0"},
+            ],
+        }
+
+    monkeypatch.setattr(TrueMarketsClient, "get_candles", mock_get_candles)
+
+    res = client.get("/api/market/candles?asset=BTC&window=1d")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["asset"] == "BTC"
+    assert data["is_available"] is True
+    assert len(data["candles"]) == 2
+    assert data["current_price"] == 83600.0
+    assert data["price_change"] == 600.0
+    assert data["high"] == 83800.0
+    assert data["low"] == 82900.0
+    assert isinstance(data["candles"][0]["time"], int)
+
+    # 2. Unsupported asset validation (400)
+    res_bad = client.get("/api/market/candles?asset=FAKEASSET")
+    assert res_bad.status_code == 400
+    assert "not supported" in res_bad.json()["detail"]
+
+    # 3. Graceful upstream error handling (is_available=False, no crash)
+    async def mock_failing_candles(self, symbol, window="1d", resolution="15m", asset_class="spot"):
+        raise TrueMarketsClientError("Upstream timeout", status_code=504)
+
+    monkeypatch.setattr(TrueMarketsClient, "get_candles", mock_failing_candles)
+    # Use different window to bypass cache
+    res_err = client.get("/api/market/candles?asset=SOL&window=4h")
+    assert res_err.status_code == 200
+    data_err = res_err.json()
+    assert data_err["is_available"] is False
+    assert data_err["status_label"] == "Market data temporarily unavailable"
+    assert len(data_err["candles"]) == 0
+
+
+def test_risk_engine_why_it_matters_and_what_you_can_do_populated():
+    """Verify that RiskEngine enriches checks with explainable 'why_it_matters' and 'what_you_can_do'."""
+    from app.services.risk_engine import RiskEngine
+    from app.domain.models import QuoteSnapshot, OrderSide, AmountType
+
+    quote = QuoteSnapshot(
+        pair="BTC/USDC",
+        base_asset="BTC",
+        quote_asset="USDC",
+        bid=80000.0,
+        ask=80100.0,
+        mid=80050.0,
+        spread_pct=0.12,
+        timestamp="2026-10-07T12:00:00Z",
+        expires_at="2026-10-07T12:05:00Z",
+        source="DEMO_SIMULATOR",
+        age_seconds=5.0,
+    )
+
+    risk_result, _, _, _ = RiskEngine.evaluate_trade(
+        asset="BTC",
+        side=OrderSide.BUY,
+        request_amount=1000.0,
+        request_amount_type=AmountType.USD,
+        quote=quote,
+        cash_usd=10000.0,
+        current_positions={"BTC": 0.05},
+    )
+
+    for check in risk_result.checks:
+        assert check.why_it_matters is not None and len(check.why_it_matters) > 5
+        assert check.what_you_can_do is not None and len(check.what_you_can_do) > 5
+
+
+
 

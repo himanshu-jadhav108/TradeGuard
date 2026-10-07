@@ -17,10 +17,10 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15.5-black.svg?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript 5.7](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS 3.4](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests Passing](https://img.shields.io/badge/pytest-42%2F42%20passed-22c55e.svg?style=flat-square&logo=pytest&logoColor=white)](backend/tests/test_backend.py)
+[![Tests Passing](https://img.shields.io/badge/pytest-44%2F44%20passed-22c55e.svg?style=flat-square&logo=pytest&logoColor=white)](backend/tests/test_backend.py)
 [![Hackathon Submission](https://img.shields.io/badge/TradeSphere-Hackathon%202026-f59e0b.svg?style=flat-square)](https://tradesphere.dev/)
 
-[Live Deployments](#-live-deployments) • [Product Demo](#-product-demo-video) • [TradeSphere Rubric Mapping](#-tradesphere-hackathon-2026-rubric-mapping) • [Product Overview](#what-is-tradeguard) • [How It Works](#how-it-works) • [Safety Architecture](#safety-architecture) • [Deterministic Algorithms](#-deterministic-algorithms) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Demo Script](#-step-by-step-judge-demo-script) • [Quick Start](#quick-start)
+[Live Deployments](#-live-deployments) • [Product Demo](#-product-demo-video) • [TradeSphere Rubric Mapping](#-tradesphere-hackathon-2026-rubric-mapping) • [Product Overview](#what-is-tradeguard) • [How It Works](#how-it-works) • [Market Context & Candlestick Engine](#-market-context--ohlc-candlestick-engine) • [Safety Architecture](#safety-architecture) • [Deterministic Algorithms](#-deterministic-algorithms) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Quick Start](#quick-start)
 
 ---
 
@@ -161,6 +161,38 @@ flowchart LR
     I --> J["07 Atomic State Lock<br/>CONFIRMING"]:::risk
     J --> K["08 Order Lifecycle<br/>Simulated / True Markets"]:::exec
 ```
+
+---
+
+## 📈 Market Context & OHLC Candlestick Engine
+
+TradeGuard elevates pre-trade intelligence by linking **Market Context** directly with **User Intent** and **Projected Portfolio Impact**. Rather than serving as decorative charts, real OHLC candlestick data provides immediate visual grounding for every trade.
+
+### 1. Live True Markets Market Data Integration
+- **Upstream Endpoint:** `GET /v1/defi/market/prices/candles` (served via isolated backend proxy `/api/market/candles`).
+- **Supported Assets:** `BTC`, `ETH`, `SOL`, `USDC`.
+- **Configurable Timeframes & Resolutions:**
+  - `1H`: 1-hour lookback, 1-minute resolution (`window=1h, resolution=1m`)
+  - `4H`: 4-hour lookback, 5-minute resolution (`window=4h, resolution=5m`)
+  - `1D`: 24-hour lookback, 15-minute resolution (`window=1d, resolution=15m`)
+  - `7D`: 7-day lookback, 1-hour resolution (`window=7d, resolution=1h`)
+- **Real-Time Market Metrics:** Displays current live price, price change, percentage change, 24H High, 24H Low, and candle timestamp.
+- **Data Freshness Indicator:** Transparently communicates data recency (`Live market data` or `Market data updated Xs ago`). Never falsely claims "live" when stale.
+
+### 2. Proposed Trade Entry Marker
+When a user stages a trade proposal (e.g. *"Buy $5,000 of BTC"*):
+- A subtle dashed cyan horizontal price line is drawn on the chart at the exact quote execution price.
+- Visually connects what the market is doing with what the trader is about to do.
+- Strictly does not predict future prices; acts as an orientation anchor for the user's decision.
+
+### 3. Unified Decision Triad
+The Trade Desk unites:
+$$\text{Market Context (Candles + Stats)} \longrightarrow \text{User Intent (Composer)} \longrightarrow \text{Risk Validation (Checks + Exposure Gauge)}$$
+Before confirming, the user sees how the live market price relates to their proposed entry and how their portfolio allocation shifts.
+
+### 4. Strict Truthfulness & Graceful Fallback
+- **Zero Simulated History:** TradeGuard never generates fake candles, simulated prices, or random walk data.
+- **Graceful Failure Handling:** If the market data endpoint is unreachable or an asset is unlisted, the chart displays a clean status: *"Market data temporarily unavailable - Pre-trade review and safety checks remain active."* Order review and risk evaluation continue safely.
 
 ---
 
@@ -660,7 +692,7 @@ SQLite `BEGIN IMMEDIATE` locks ensure single-threaded atomic balance re-checks a
 
 TradeGuard includes an automated test suite verifying intent parsing, risk calculations, race condition locks, session hardening, and audit logging.
 
-### 1. Run Backend Automated Test Suite (37 Tests)
+### 1. Run Backend Automated Test Suite (44 Tests)
 
 ```powershell
 cd backend
@@ -670,47 +702,54 @@ python -m pytest -v
 ```text
 ============================= test session starts =============================
 platform win32 -- Python 3.14.6, pytest-9.0.3 -- Python interpreter
-collected 37 items
+collected 44 items
 
 tests/test_backend.py::test_intent_parsing_buy_usd PASSED                [  2%]
-tests/test_backend.py::test_intent_parsing_buy_asset_quantity PASSED     [  5%]
-tests/test_backend.py::test_intent_parsing_fractional_asset PASSED       [  8%]
-tests/test_backend.py::test_intent_parsing_sell_asset PASSED             [ 10%]
-tests/test_backend.py::test_intent_rejection_negation PASSED             [ 13%]
-tests/test_backend.py::test_intent_rejection_multi_leg PASSED            [ 16%]
-tests/test_backend.py::test_intent_rejection_scientific_notation PASSED  [ 18%]
-tests/test_backend.py::test_intent_rejection_unsupported_asset PASSED    [ 21%]
-tests/test_backend.py::test_intent_ambiguous_bare_number_clarification PASSED [ 24%]
-tests/test_backend.py::test_intent_oversized_prompt_rejection PASSED     [ 27%]
-tests/test_backend.py::test_risk_engine_pass PASSED                      [ 29%]
-tests/test_backend.py::test_risk_engine_block_insufficient_cash PASSED   [ 32%]
-tests/test_backend.py::test_risk_engine_block_max_notional_ceiling PASSED [ 35%]
-tests/test_backend.py::test_risk_engine_concentration_warning PASSED     [ 37%]
-tests/test_backend.py::test_e2e_proposal_confirm_and_double_confirm_prevention PASSED [ 40%]
-tests/test_backend.py::test_warn_requires_explicit_acknowledgement PASSED [ 43%]
-tests/test_backend.py::test_block_cannot_execute PASSED                  [ 45%]
-tests/test_backend.py::test_session_isolation_and_scoped_reset PASSED    [ 48%]
-tests/test_backend.py::test_get_reset_disallowed PASSED                  [ 51%]
-tests/test_backend.py::test_true_markets_client_unconfigured_safety PASSED [ 54%]
-tests/test_backend.py::test_true_markets_client_auth_url_normalization PASSED [ 56%]
-tests/test_backend.py::test_true_markets_client_signer_key_resolution PASSED [ 59%]
-tests/test_backend.py::test_uat_quote_success_gateway_tagged PASSED      [ 62%]
-tests/test_backend.py::test_uat_quote_error_raises_and_never_tags_static_price_as_uat PASSED [ 64%]
-tests/test_backend.py::test_uat_quote_timeout_raises_and_never_tags_static_price_as_uat PASSED [ 67%]
-tests/test_backend.py::test_demo_mode_never_tags_static_price_as_uat PASSED [ 70%]
-tests/test_backend.py::test_uat_order_passes_quote_id_and_never_uses_mid_as_fill_price PASSED [ 72%]
-tests/test_backend.py::test_forced_failure_after_fill_cannot_double_fill PASSED [ 75%]
-tests/test_backend.py::test_cancel_during_confirming_returns_409 PASSED  [ 78%]
-tests/test_backend.py::test_cancel_only_allowed_from_pending_confirmation PASSED [ 81%]
-tests/test_backend.py::test_uat_execute_failure_marks_order_failed_and_locks_proposal PASSED [ 83%]
-tests/test_backend.py::test_audit_intent_parsed_and_rejected PASSED      [ 86%]
-tests/test_backend.py::test_audit_risk_evaluated_warning_ack_and_rejections PASSED [ 89%]
-tests/test_backend.py::test_safety_signals_computation_and_endpoint PASSED [ 91%]
-tests/test_backend.py::test_intent_zero_and_negative_rejection PASSED    [ 94%]
-tests/test_backend.py::test_trade_proposal_validators_and_valueerror_mapping_to_422 PASSED [ 97%]
-tests/test_backend.py::test_session_hardening_missing_and_invalid_rejected_400 PASSED [100%]
+tests/test_backend.py::test_intent_parsing_buy_asset_quantity PASSED     [  4%]
+tests/test_backend.py::test_intent_parsing_fractional_asset PASSED       [  6%]
+tests/test_backend.py::test_intent_parsing_sell_asset PASSED             [  9%]
+tests/test_backend.py::test_intent_rejection_negation PASSED             [ 11%]
+tests/test_backend.py::test_intent_rejection_multi_leg PASSED            [ 13%]
+tests/test_backend.py::test_intent_rejection_scientific_notation PASSED  [ 15%]
+tests/test_backend.py::test_intent_rejection_unsupported_asset PASSED    [ 18%]
+tests/test_backend.py::test_intent_ambiguous_bare_number_clarification PASSED [ 20%]
+tests/test_backend.py::test_intent_oversized_prompt_rejection PASSED     [ 22%]
+tests/test_backend.py::test_risk_engine_pass PASSED                      [ 25%]
+tests/test_backend.py::test_risk_engine_block_insufficient_cash PASSED   [ 27%]
+tests/test_backend.py::test_risk_engine_block_max_notional_ceiling PASSED [ 29%]
+tests/test_backend.py::test_risk_engine_concentration_warning PASSED     [ 31%]
+tests/test_backend.py::test_e2e_proposal_confirm_and_double_confirm_prevention PASSED [ 34%]
+tests/test_backend.py::test_warn_requires_explicit_acknowledgement PASSED [ 36%]
+tests/test_backend.py::test_block_cannot_execute PASSED                  [ 38%]
+tests/test_backend.py::test_session_isolation_and_scoped_reset PASSED    [ 40%]
+tests/test_backend.py::test_get_reset_disallowed PASSED                  [ 43%]
+tests/test_backend.py::test_true_markets_client_unconfigured_safety PASSED [ 45%]
+tests/test_backend.py::test_true_markets_client_auth_url_normalization PASSED [ 47%]
+tests/test_backend.py::test_true_markets_client_signer_key_resolution PASSED [ 50%]
+tests/test_backend.py::test_uat_quote_success_gateway_tagged PASSED      [ 52%]
+tests/test_backend.py::test_uat_quote_error_raises_and_never_tags_static_price_as_uat PASSED [ 54%]
+tests/test_backend.py::test_uat_quote_timeout_raises_and_never_tags_static_price_as_uat PASSED [ 56%]
+tests/test_backend.py::test_demo_mode_never_tags_static_price_as_uat PASSED [ 59%]
+tests/test_backend.py::test_uat_order_passes_quote_id_and_never_uses_mid_as_fill_price PASSED [ 61%]
+tests/test_backend.py::test_forced_failure_after_fill_cannot_double_fill PASSED [ 63%]
+tests/test_backend.py::test_cancel_during_confirming_returns_409 PASSED  [ 65%]
+tests/test_backend.py::test_cancel_only_allowed_from_pending_confirmation PASSED [ 68%]
+tests/test_backend.py::test_uat_execute_failure_marks_order_failed_and_locks_proposal PASSED [ 70%]
+tests/test_backend.py::test_audit_intent_parsed_and_rejected PASSED      [ 72%]
+tests/test_backend.py::test_audit_risk_evaluated_warning_ack_and_rejections PASSED [ 75%]
+tests/test_backend.py::test_safety_signals_computation_and_endpoint PASSED [ 77%]
+tests/test_backend.py::test_intent_zero_and_negative_rejection PASSED    [ 79%]
+tests/test_backend.py::test_trade_proposal_validators_and_valueerror_mapping_to_422 PASSED [ 81%]
+tests/test_backend.py::test_session_hardening_missing_and_invalid_rejected_400 PASSED [ 84%]
+tests/test_backend.py::test_stale_quote_at_confirm_via_api PASSED        [ 86%]
+tests/test_backend.py::test_warning_acknowledgement_required_and_recorded_in_audit PASSED [ 88%]
+tests/test_backend.py::test_stubbed_uat_timeout_handling PASSED          [ 90%]
+tests/test_backend.py::test_crash_after_fill_transaction_atomicity PASSED [ 93%]
+tests/test_backend.py::test_strict_monotonic_event_ordering_across_lifecycle PASSED [ 95%]
+tests/test_backend.py::test_market_candles_endpoint_success_and_error PASSED [ 97%]
+tests/test_backend.py::test_risk_engine_why_it_matters_and_what_you_can_do_populated PASSED [100%]
 
-======================== 37 passed, 1 warning in 1.49s ========================
+======================== 44 passed, 1 warning in 2.83s ========================
 ```
 
 ### 2. Run Frontend Typecheck, Lint & Build

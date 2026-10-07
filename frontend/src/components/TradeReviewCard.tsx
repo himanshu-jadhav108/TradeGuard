@@ -405,11 +405,12 @@ export function TradeReviewCard({
                 “{proposal.raw_prompt || `${proposal.side} $${proposal.request_amount} of ${proposal.asset}`}”
               </p>
             </div>
-            <div>
-              <span className="text-[10px] text-fg-subtle uppercase block mb-1 font-sans">
-                We Understood:
+            <div className="animate-transform-intent">
+              <span className="text-[10px] text-fg-subtle uppercase block mb-1 font-sans flex items-center gap-1.5">
+                <span>We Understood:</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-subtle" />
               </span>
-              <div className="flex items-center gap-2 bg-surface p-2.5 rounded-lg border border-border font-bold">
+              <div className="flex items-center gap-2 bg-surface p-2.5 rounded-lg border border-accent/40 shadow-subtle font-bold">
                 <span className={isBuy ? "text-accent" : "text-danger"}>
                   {proposal.side}
                 </span>
@@ -586,6 +587,28 @@ export function TradeReviewCard({
                         <p className="text-[11px] text-accent font-medium mt-1">
                           ↳ {check.suggested_action}
                         </p>
+                      )}
+                      {check.why_it_matters && (
+                        <div className="mt-2 rounded-lg bg-surface/80 border border-border/80 p-2.5 text-[11px] space-y-1.5">
+                          <div>
+                            <span className="font-semibold text-fg-muted block uppercase tracking-wider text-[10px] font-mono">
+                              Why this matters
+                            </span>
+                            <p className="text-fg-subtle mt-0.5 leading-relaxed">
+                              {check.why_it_matters}
+                            </p>
+                          </div>
+                          {check.what_you_can_do && (
+                            <div className="pt-1.5 border-t border-border/60">
+                              <span className="font-semibold text-fg-muted block uppercase tracking-wider text-[10px] font-mono">
+                                What you can do
+                              </span>
+                              <p className="text-accent font-medium mt-0.5 leading-relaxed">
+                                {check.what_you_can_do}
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       )}
                       {check.details && (check.details.observed || check.details.threshold) && (
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono">

@@ -240,3 +240,74 @@ class TrueMarketsClient:
         except httpx.RequestError as exc:
             logger.error("Network error during True Markets status inquiry: %s", str(exc))
             raise TrueMarketsClientError(f"Gateway connection error: {str(exc)}", status_code=503, error_code="GATEWAY_UNAVAILABLE")
+
+    def _get_market_data_url(self) -> str:
+        """
+        Derives market data base endpoint for defi candles:
+        https://api.truemarkets.co/v1/defi/market/prices/candles
+        or UAT: https://api.uat.truemarkets.co/v1/defi/market/prices/candles
+        """
+        url = self.base_url
+        if url.endswith("/gateway"):
+            url = url[:-len("/gateway")]
+        if not url.endswith("/v1"):
+            url = f"{url}/v1"
+        return f"{url}/defi/market/prices/candles"
+
+    async def get_candles(
+        self,
+        symbol: str,
+        window: str = "1d",
+        resolution: str = "15m",
+        asset_class: str = "spot",
+    ) -> Dict[str, Any]:
+        """
+        GET /v1/defi/market/prices/candles
+        Retrieves real OHLC candles directly from True Markets public market data API.
+        Does not invent or simulate fake candles.
+        """
+        url = self._get_market_data_url()
+        params = {
+            "symbol": symbol.upper(),
+            "window": window,
+            "resolution": resolution,
+            "asset_class": asset_class,
+        }
+        headers = {}
+        if self._auth_token:
+            headers["Authorization"] = f"Bearer {self._auth_token}"
+        elif self.api_key:
+            headers["X-API-Key"] = self.api_key
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(url, params=params, headers=headers)
+                if res.status_code == 200:
+                    return res.json()
+                elif res.status_code == 404:
+                    logger.info("Asset candles not found for %s: %s", symbol, res.text)
+                    raise TrueMarketsClientError(
+                        f"Candles not found for symbol '{symbol}'.",
+                        status_code=404,
+                        error_code="SYMBOL_NOT_FOUND",
+                    )
+                elif res.status_code == 400:
+                    logger.warning("Invalid candle request for %s: %s", symbol, res.text)
+                    raise TrueMarketsClientError(
+                        f"Invalid candle request parameters: {res.text[:120]}",
+                        status_code=400,
+                        error_code="INVALID_PARAMETERS",
+                    )
+                else:
+                    logger.warning("True Markets candle query failed: HTTP %s", res.status_code)
+                    raise TrueMarketsClientError(
+                        f"Market data service error: HTTP {res.status_code}",
+                        status_code=res.status_code,
+                        error_code="UPSTREAM_ERROR",
+                    )
+        except httpx.TimeoutException:
+            logger.error("Timeout during True Markets candle fetch for %s", symbol)
+            raise TrueMarketsClientError("Market data timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
+        except httpx.RequestError as exc:
+            logger.error("Network error during candle fetch for %s: %s", symbol, type(exc).__name__)
+            raise TrueMarketsClientError("Market data connection error", status_code=503, error_code="GATEWAY_UNAVAILABLE")

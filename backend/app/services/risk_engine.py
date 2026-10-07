@@ -57,6 +57,8 @@ class RiskEngine:
                 message=f"Asset '{symbol}' is not on the supported institutional allowlist.",
                 details={"observed": symbol, "threshold": "Supported Allowlist", "asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
                 suggested_action=f"Select a supported asset: {', '.join(settings.SUPPORTED_ASSETS)}",
+                why_it_matters="Execution is restricted to verified, liquid institutional pairs on the allowlist.",
+                what_you_can_do=f"Select a supported asset: {', '.join(settings.SUPPORTED_ASSETS)}.",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -64,6 +66,8 @@ class RiskEngine:
                 status=RiskLevel.PASS,
                 message=f"Asset '{symbol}' is verified on the supported allowlist.",
                 details={"observed": symbol, "threshold": "Supported Allowlist", "asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
+                why_it_matters="Asset is verified on the institutional allowlist.",
+                what_you_can_do="Proceed with order review.",
             ))
 
         # 2. Quote Freshness Check
@@ -85,6 +89,8 @@ class RiskEngine:
                 message="Quote has expired or exceeded maximum time-to-live. A new quote must be requested.",
                 details={"observed": f"{quote_age:.1f}s age", "threshold": ttl_str, "quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
                 suggested_action="Refresh quote to retrieve fresh pricing.",
+                why_it_matters="Quotes older than 30 seconds risk adverse execution slippage in volatile market conditions.",
+                what_you_can_do="Click 'Refresh Expired Quote' to fetch a fresh market snapshot.",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -92,6 +98,8 @@ class RiskEngine:
                 status=RiskLevel.PASS,
                 message="Market quote is fresh and within the 30-second TTL window.",
                 details={"observed": f"{quote_age:.1f}s age", "threshold": ttl_str, "quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
+                why_it_matters="Quote freshness guarantees pricing within the strict 30-second execution window.",
+                what_you_can_do="Proceed with order review.",
             ))
 
         # 3. Calculate Quantity and Notional in Decimal
@@ -112,6 +120,8 @@ class RiskEngine:
                 status=RiskLevel.BLOCK,
                 message="Trade quantity and notional amount must be strictly greater than zero.",
                 details={"observed": f"${notional_usd:,.2f} ({qty:,.6f} {symbol})", "threshold": "> $0.00"},
+                why_it_matters="Zero or negative trade values cannot be routed to exchange order books.",
+                what_you_can_do="Specify a positive dollar or token amount.",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -119,6 +129,8 @@ class RiskEngine:
                 status=RiskLevel.PASS,
                 message=f"Calculated {qty:,.6f} {symbol} (${notional_usd:,.2f} USD).",
                 details={"observed": f"${notional_usd:,.2f} ({qty:,.6f} {symbol})", "threshold": "> $0.00"},
+                why_it_matters="Order amount and derived quantities are strictly positive.",
+                what_you_can_do="Proceed with order review.",
             ))
 
         # 4. Maximum Order Notional Limit Check ($25,000)
@@ -131,6 +143,8 @@ class RiskEngine:
                 message=f"Order size of ${notional_usd:,.2f} exceeds strict system ceiling of ${float(d_max_notional):,.2f}.",
                 details={"observed": f"${notional_usd:,.2f}", "threshold": f"${float(d_max_notional):,.2f}", "max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
                 suggested_action=f"Reduce order size to ${float(d_max_notional):,.2f} or less.",
+                why_it_matters=f"Strict order ceiling (${float(d_max_notional):,.2f}) prevents catastrophic fat-finger entries and runaway exposures.",
+                what_you_can_do=f"Reduce order size to ${float(d_max_notional):,.2f} or use the suggested safe amount.",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -138,6 +152,8 @@ class RiskEngine:
                 status=RiskLevel.PASS,
                 message=f"Order notional (${notional_usd:,.2f}) is within maximum threshold of ${float(d_max_notional):,.2f}.",
                 details={"observed": f"${notional_usd:,.2f}", "threshold": f"${float(d_max_notional):,.2f}", "max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
+                why_it_matters=f"Order notional remains strictly under the safety ceiling (${float(d_max_notional):,.2f}).",
+                what_you_can_do="Proceed with order review.",
             ))
 
         # 5. Balance Sufficiency Check
@@ -152,6 +168,8 @@ class RiskEngine:
                     message=f"Insufficient cash balance. Available: ${float(d_cash):,.2f}, required: ${notional_usd:,.2f} (shortfall: ${float(d_shortfall):,.2f}).",
                     details={"observed": f"${notional_usd:,.2f} required", "threshold": f"${float(d_cash):,.2f} available", "available_cash": float(d_cash), "required_cash": notional_usd},
                     suggested_action=f"Reduce buy amount to your available cash of ${float(d_cash):,.2f}.",
+                    why_it_matters="Orders requiring more cash than available in your settled balance cannot be executed.",
+                    what_you_can_do=f"Reduce buy amount to your available cash of ${float(d_cash):,.2f} or deposit additional USDC.",
                 ))
             else:
                 checks.append(RiskCheckItem(
@@ -159,6 +177,8 @@ class RiskEngine:
                     status=RiskLevel.PASS,
                     message=f"Cash balance of ${float(d_cash):,.2f} is sufficient for ${notional_usd:,.2f} purchase.",
                     details={"observed": f"${notional_usd:,.2f} required", "threshold": f"${float(d_cash):,.2f} available", "available_cash": float(d_cash), "required_cash": notional_usd},
+                    why_it_matters="Liquid purchasing power is verified sufficient for full settlement.",
+                    what_you_can_do="Proceed with order review.",
                 ))
         elif side == OrderSide.SELL:
             d_current_qty = to_d(current_positions.get(symbol, 0.0))
@@ -169,6 +189,8 @@ class RiskEngine:
                     message=f"Insufficient asset balance. Owned: {float(d_current_qty):,.6f} {symbol}, requested sell: {qty:,.6f} {symbol}.",
                     details={"observed": f"{qty:,.6f} {symbol} requested", "threshold": f"{float(d_current_qty):,.6f} {symbol} owned", "available_qty": float(d_current_qty), "requested_qty": qty},
                     suggested_action=f"Adjust sell quantity to your owned balance of {float(d_current_qty):,.6f} {symbol}.",
+                    why_it_matters="Short selling is disabled; orders cannot exceed owned token holdings.",
+                    what_you_can_do=f"Adjust sell quantity to your owned balance of {float(d_current_qty):,.6f} {symbol}.",
                 ))
             else:
                 checks.append(RiskCheckItem(
@@ -176,6 +198,8 @@ class RiskEngine:
                     status=RiskLevel.PASS,
                     message=f"Holding of {float(d_current_qty):,.6f} {symbol} is sufficient for sale.",
                     details={"observed": f"{qty:,.6f} {symbol} requested", "threshold": f"{float(d_current_qty):,.6f} {symbol} owned", "available_qty": float(d_current_qty), "requested_qty": qty},
+                    why_it_matters="Sufficient asset inventory is verified in your portfolio.",
+                    what_you_can_do="Proceed with order review.",
                 ))
 
         # 6. Portfolio Impact & Single Source of Truth Valuation
@@ -232,6 +256,8 @@ class RiskEngine:
                     "threshold_pct": concentration_threshold_display,
                 },
                 suggested_action=f"Acknowledging this warning allows confirmation, or reduce order size to maintain <{concentration_threshold_display:.0f}% allocation.",
+                why_it_matters=f"The proposed trade increases portfolio concentration in {symbol} beyond the configured {concentration_threshold_display:.0f}% guideline.",
+                what_you_can_do=f"Reduce order size to stay under {concentration_threshold_display:.0f}%, or acknowledge this risk to proceed with confirmation.",
             ))
         else:
             checks.append(RiskCheckItem(
@@ -245,6 +271,8 @@ class RiskEngine:
                     "projected_pct": float(d_proj_alloc_pct),
                     "threshold_pct": concentration_threshold_display,
                 },
+                why_it_matters=f"Projected portfolio allocation remains diversified within the {concentration_threshold_display:.0f}% guideline threshold.",
+                what_you_can_do="Proceed with order review.",
             ))
 
         # Overall Status Determination

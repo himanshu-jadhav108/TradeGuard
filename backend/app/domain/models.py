@@ -73,6 +73,35 @@ class RiskCheckItem(BaseModel):
     message: str
     details: Dict[str, Any] = Field(default_factory=dict)
     suggested_action: Optional[str] = None
+    why_it_matters: Optional[str] = None
+    what_you_can_do: Optional[str] = None
+
+
+class OHLCBucket(BaseModel):
+    time: int
+    iso_time: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: Optional[float] = None
+
+
+class MarketCandlesResponse(BaseModel):
+    asset: str
+    window: str
+    resolution: str
+    current_price: Optional[float] = None
+    price_change: Optional[float] = None
+    price_change_pct: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    latest_timestamp: Optional[str] = None
+    candles: List[OHLCBucket] = Field(default_factory=list)
+    freshness_seconds: Optional[int] = None
+    is_available: bool = True
+    status_label: str = "Live market data"
+    error: Optional[str] = None
 
 
 class RiskResult(BaseModel):
