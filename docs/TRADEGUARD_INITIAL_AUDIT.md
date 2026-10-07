@@ -92,9 +92,9 @@ d:\Projects\TradeGuard\
    - **Intent Service:** Structured parsing with deterministic fallback parsing + LLM extraction adapter with strict schema enforcement
    - **Deterministic Risk Engine:** Authoritative checks (asset allowlist, valid side/positive quantity, balance sufficiency, max order notional limit, portfolio concentration threshold, quote freshness/staleness)
    - **Quote Service:** Deterministic simulated quotes for DEMO mode; True Markets Gateway quotes for UAT
-   - **Trade Proposal Service:** Coordinates intent, quote, and risk engine to generate an immutable, explainable proposal
+   - **Trade Proposal Service:** Coordinates intent, quote, and risk engine to generate a deterministic, explainable proposal
    - **True Markets Client Adapter (`true_markets_client.py`):** Strict boundary wrapper for UAT gateway endpoints (`/v1/auth/api-key/token`, `/quotes`, `/orders`, `/orders/{id}/execute`, `/orders/{id}/status`, balances) with signing payload handling, error normalization, and credential isolation
-   - **Order Lifecycle & Audit Service:** Manages states (`PENDING_CONFIRMATION`, `SUBMITTED`, `PENDING_EXECUTION`, `FILLED`, `CANCELLED`, `REJECTED`), updates portfolio positions, and appends immutable audit events
+   - **Order Lifecycle & Audit Service:** Manages states (`PENDING_CONFIRMATION`, `SUBMITTED`, `PENDING_EXECUTION`, `FILLED`, `CANCELLED`, `REJECTED`), updates portfolio positions, and appends append-only audit events
    - **Database Storage:** SQLite repository interface (`sqlite3` / SQLAlchemy) for local/demo persistence (users, portfolios, positions, proposals, orders, audit_events)
 
 ---
@@ -127,7 +127,7 @@ TradeGuard
 │   │   │   ├── proposal_service.py # Trade proposal compilation & explanation
 │   │   │   ├── order_service.py  # Order state machine & execution flow
 │   │   │   ├── portfolio_service.py # Holdings, exposure, cash calculations
-│   │   │   ├── audit_service.py  # Immutable event stream recorder
+│   │   │   ├── audit_service.py  # Append-only event stream recorder
 │   │   │   └── true_markets_client.py # Isolated UAT gateway adapter
 │   │   ├── db/                   # SQLite schema, migrations, repository patterns
 │   │   └── main.py               # FastAPI entrypoint, middleware, lifespan

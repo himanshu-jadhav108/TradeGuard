@@ -23,7 +23,7 @@ services:
       - key: TM_API_BASE_URL
         value: https://api.uat.truemarkets.co/v1/gateway
       - key: CORS_ORIGINS
-        value: "http://localhost:3000,https://tradeguard.vercel.app"
+        value: "http://localhost:3000,https://trade-guard-snowy.vercel.app,https://tradeguard.vercel.app"
       - key: MAX_NOTIONAL_USD
         value: "25000.0"
       - key: CONCENTRATION_THRESHOLD_PCT
