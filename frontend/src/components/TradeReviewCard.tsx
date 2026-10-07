@@ -406,7 +406,7 @@ export function TradeReviewCard({
               </p>
             </div>
             <div className="animate-transform-intent">
-              <span className="text-[10px] text-fg-subtle uppercase block mb-1 font-sans flex items-center gap-1.5">
+              <span className="text-[10px] text-fg-subtle uppercase flex items-center gap-1.5 mb-1 font-sans">
                 <span>We Understood:</span>
                 <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse-subtle" />
               </span>
