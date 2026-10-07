@@ -243,16 +243,12 @@ class TrueMarketsClient:
 
     def _get_market_data_url(self) -> str:
         """
-        Derives market data base endpoint for defi candles:
+        Market data base endpoint for defi candles.
+        Points to the official public True Markets market data candles service:
         https://api.truemarkets.co/v1/defi/market/prices/candles
-        or UAT: https://api.uat.truemarkets.co/v1/defi/market/prices/candles
+        Per official documentation: https://docs.truemarkets.co/api/market-data/get-ohlc-candles-for-a-symbol/
         """
-        url = self.base_url
-        if url.endswith("/gateway"):
-            url = url[:-len("/gateway")]
-        if not url.endswith("/v1"):
-            url = f"{url}/v1"
-        return f"{url}/defi/market/prices/candles"
+        return "https://api.truemarkets.co/v1/defi/market/prices/candles"
 
     async def get_candles(
         self,
