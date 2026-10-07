@@ -626,7 +626,7 @@ export default function LandingPage() {
 
           <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-fg-subtle">
             <span>
-              Built for the TradeSphere Hackathon 2026.
+              TradeGuard — Institutional pre-trade verification and safety layer.
             </span>
             <span className="font-mono">
               Structured intent. Backend validates. User decides.
