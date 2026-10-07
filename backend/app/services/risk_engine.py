@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Dict, List, Optional, Tuple
 from app.core.config import settings
@@ -54,7 +55,7 @@ class RiskEngine:
                 name="Asset Support",
                 status=RiskLevel.BLOCK,
                 message=f"Asset '{symbol}' is not on the supported institutional allowlist.",
-                details={"asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
+                details={"observed": symbol, "threshold": "Supported Allowlist", "asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
                 suggested_action=f"Select a supported asset: {', '.join(settings.SUPPORTED_ASSETS)}",
             ))
         else:
@@ -62,15 +63,27 @@ class RiskEngine:
                 name="Asset Support",
                 status=RiskLevel.PASS,
                 message=f"Asset '{symbol}' is verified on the supported allowlist.",
+                details={"observed": symbol, "threshold": "Supported Allowlist", "asset": symbol, "allowed": settings.SUPPORTED_ASSETS},
             ))
 
         # 2. Quote Freshness Check
+        quote_age: float = 0.0
+        if quote.age_seconds is not None:
+            quote_age = quote.age_seconds
+        else:
+            try:
+                q_ts = datetime.fromisoformat(quote.timestamp.replace("Z", "+00:00"))
+                quote_age = max(0.0, (datetime.now(timezone.utc) - q_ts).total_seconds())
+            except Exception:
+                quote_age = 0.0
+
+        ttl_str = f"{settings.QUOTE_TTL_SECONDS:.1f}s TTL"
         if not QuoteService.is_quote_fresh(quote):
             checks.append(RiskCheckItem(
                 name="Quote Freshness",
                 status=RiskLevel.BLOCK,
                 message="Quote has expired or exceeded maximum time-to-live. A new quote must be requested.",
-                details={"quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
+                details={"observed": f"{quote_age:.1f}s age", "threshold": ttl_str, "quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
                 suggested_action="Refresh quote to retrieve fresh pricing.",
             ))
         else:
@@ -78,6 +91,7 @@ class RiskEngine:
                 name="Quote Freshness",
                 status=RiskLevel.PASS,
                 message="Market quote is fresh and within the 30-second TTL window.",
+                details={"observed": f"{quote_age:.1f}s age", "threshold": ttl_str, "quote_timestamp": quote.timestamp, "expires_at": quote.expires_at},
             ))
 
         # 3. Calculate Quantity and Notional in Decimal
@@ -97,12 +111,14 @@ class RiskEngine:
                 name="Valid Amount",
                 status=RiskLevel.BLOCK,
                 message="Trade quantity and notional amount must be strictly greater than zero.",
+                details={"observed": f"${notional_usd:,.2f} ({qty:,.6f} {symbol})", "threshold": "> $0.00"},
             ))
         else:
             checks.append(RiskCheckItem(
                 name="Valid Amount",
                 status=RiskLevel.PASS,
                 message=f"Calculated {qty:,.6f} {symbol} (${notional_usd:,.2f} USD).",
+                details={"observed": f"${notional_usd:,.2f} ({qty:,.6f} {symbol})", "threshold": "> $0.00"},
             ))
 
         # 4. Maximum Order Notional Limit Check ($25,000)
@@ -113,7 +129,7 @@ class RiskEngine:
                 name="Maximum Notional Limit",
                 status=RiskLevel.BLOCK,
                 message=f"Order size of ${notional_usd:,.2f} exceeds strict system ceiling of ${float(d_max_notional):,.2f}.",
-                details={"max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
+                details={"observed": f"${notional_usd:,.2f}", "threshold": f"${float(d_max_notional):,.2f}", "max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
                 suggested_action=f"Reduce order size to ${float(d_max_notional):,.2f} or less.",
             ))
         else:
@@ -121,6 +137,7 @@ class RiskEngine:
                 name="Maximum Notional Limit",
                 status=RiskLevel.PASS,
                 message=f"Order notional (${notional_usd:,.2f}) is within maximum threshold of ${float(d_max_notional):,.2f}.",
+                details={"observed": f"${notional_usd:,.2f}", "threshold": f"${float(d_max_notional):,.2f}", "max_allowed_usd": float(d_max_notional), "requested_usd": notional_usd},
             ))
 
         # 5. Balance Sufficiency Check
@@ -133,7 +150,7 @@ class RiskEngine:
                     name="Balance Sufficiency",
                     status=RiskLevel.BLOCK,
                     message=f"Insufficient cash balance. Available: ${float(d_cash):,.2f}, required: ${notional_usd:,.2f} (shortfall: ${float(d_shortfall):,.2f}).",
-                    details={"available_cash": float(d_cash), "required_cash": notional_usd},
+                    details={"observed": f"${notional_usd:,.2f} required", "threshold": f"${float(d_cash):,.2f} available", "available_cash": float(d_cash), "required_cash": notional_usd},
                     suggested_action=f"Reduce buy amount to your available cash of ${float(d_cash):,.2f}.",
                 ))
             else:
@@ -141,6 +158,7 @@ class RiskEngine:
                     name="Balance Sufficiency",
                     status=RiskLevel.PASS,
                     message=f"Cash balance of ${float(d_cash):,.2f} is sufficient for ${notional_usd:,.2f} purchase.",
+                    details={"observed": f"${notional_usd:,.2f} required", "threshold": f"${float(d_cash):,.2f} available", "available_cash": float(d_cash), "required_cash": notional_usd},
                 ))
         elif side == OrderSide.SELL:
             d_current_qty = to_d(current_positions.get(symbol, 0.0))
@@ -149,7 +167,7 @@ class RiskEngine:
                     name="Position Sufficiency",
                     status=RiskLevel.BLOCK,
                     message=f"Insufficient asset balance. Owned: {float(d_current_qty):,.6f} {symbol}, requested sell: {qty:,.6f} {symbol}.",
-                    details={"available_qty": float(d_current_qty), "requested_qty": qty},
+                    details={"observed": f"{qty:,.6f} {symbol} requested", "threshold": f"{float(d_current_qty):,.6f} {symbol} owned", "available_qty": float(d_current_qty), "requested_qty": qty},
                     suggested_action=f"Adjust sell quantity to your owned balance of {float(d_current_qty):,.6f} {symbol}.",
                 ))
             else:
@@ -157,6 +175,7 @@ class RiskEngine:
                     name="Position Sufficiency",
                     status=RiskLevel.PASS,
                     message=f"Holding of {float(d_current_qty):,.6f} {symbol} is sufficient for sale.",
+                    details={"observed": f"{qty:,.6f} {symbol} requested", "threshold": f"{float(d_current_qty):,.6f} {symbol} owned", "available_qty": float(d_current_qty), "requested_qty": qty},
                 ))
 
         # 6. Portfolio Impact & Single Source of Truth Valuation
@@ -188,14 +207,14 @@ class RiskEngine:
 
         d_proj_asset_val = (d_proj_qty * d_mid_price).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         d_total_val_after = d_cash_after + (d_total_val_before - d_cash - d_current_asset_val) + d_proj_asset_val
-        
+
         d_proj_alloc_pct = (
             (d_proj_asset_val / d_total_val_after * Decimal("100")).quantize(Decimal("0.1"), rounding=ROUND_HALF_UP)
             if d_total_val_after > Decimal("0")
             else Decimal("0.0")
         )
 
-        # 7. Concentration Warning Check (40% Guideline)
+        # 7. Concentration Warning Check (Guideline)
         warn_requires_ack = False
         concentration_threshold_display = float(d_concentration_threshold * Decimal("100"))
 
@@ -206,6 +225,8 @@ class RiskEngine:
                 status=RiskLevel.WARN,
                 message=f"Order increases {symbol} concentration to {float(d_proj_alloc_pct):.1f}%, exceeding your {concentration_threshold_display:.0f}% guideline threshold.",
                 details={
+                    "observed": f"{float(d_proj_alloc_pct):.1f}%",
+                    "threshold": f"{concentration_threshold_display:.0f}%",
                     "current_pct": float(d_curr_alloc_pct),
                     "projected_pct": float(d_proj_alloc_pct),
                     "threshold_pct": concentration_threshold_display,
@@ -217,6 +238,13 @@ class RiskEngine:
                 name="Portfolio Concentration",
                 status=RiskLevel.PASS,
                 message=f"Projected {symbol} allocation is {float(d_proj_alloc_pct):.1f}%, within balanced diversification limits.",
+                details={
+                    "observed": f"{float(d_proj_alloc_pct):.1f}%",
+                    "threshold": f"{concentration_threshold_display:.0f}%",
+                    "current_pct": float(d_curr_alloc_pct),
+                    "projected_pct": float(d_proj_alloc_pct),
+                    "threshold_pct": concentration_threshold_display,
+                },
             ))
 
         # Overall Status Determination

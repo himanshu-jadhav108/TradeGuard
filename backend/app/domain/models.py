@@ -63,6 +63,7 @@ class QuoteSnapshot(BaseModel):
     expires_at: str
     source: str  # "DEMO_SIMULATOR" | "TRUE_MARKETS_UAT"
     quote_id: Optional[str] = None
+    age_seconds: Optional[float] = None
 
 
 class RiskCheckItem(BaseModel):

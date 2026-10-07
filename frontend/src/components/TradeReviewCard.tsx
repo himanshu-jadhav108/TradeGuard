@@ -45,6 +45,17 @@ export function TradeReviewCard({
   const isBlock = overallStatus === "BLOCK";
   const isDemo = proposal.quote.source !== "TRUE_MARKETS_UAT";
 
+  // Derive dynamic concentration threshold from deterministic check details (avoid hardcoding 40)
+  const concentrationCheck = proposal.risk.checks.find((c) =>
+    c.name.toLowerCase().includes("concentration")
+  );
+  const concentrationThreshold = Number(
+    concentrationCheck?.details?.threshold_pct ??
+    (concentrationCheck?.details?.threshold
+      ? String(concentrationCheck.details.threshold).replace("%", "")
+      : 40)
+  );
+
   // Live countdown timer based on backend expires_at timestamp
   useEffect(() => {
     const updateCountdown = () => {
@@ -65,7 +76,11 @@ export function TradeReviewCard({
     try {
       setRefreshing(true);
       setErrorMessage(null);
-      const promptToUse = proposal.raw_prompt || `${proposal.side} $${proposal.request_amount} of ${proposal.asset}`;
+      const fallbackPrompt =
+        proposal.request_amount_type === "ASSET"
+          ? `${proposal.side} ${proposal.request_amount} ${proposal.asset}`
+          : `${proposal.side} $${proposal.request_amount} of ${proposal.asset}`;
+      const promptToUse = proposal.raw_prompt || fallbackPrompt;
       const newProposal = await api.createProposal(promptToUse);
       if (onRefreshQuote) {
         onRefreshQuote(newProposal);
@@ -97,10 +112,12 @@ export function TradeReviewCard({
   const handleCancel = async () => {
     try {
       setCancelling(true);
+      setErrorMessage(null);
       await api.cancelTrade(proposal.id);
       if (onCancelled) onCancelled();
     } catch (err: any) {
-      console.error(err);
+      console.error("Cancel trade error:", err);
+      setErrorMessage(err.message || "Failed to cancel proposal.");
     } finally {
       setCancelling(false);
     }
@@ -409,13 +426,17 @@ export function TradeReviewCard({
 
         {/* 3. Market Quote & Parameters */}
         <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
             <h4 className="text-[11px] font-semibold uppercase tracking-wider text-fg-muted">
               Market Quote & Execution Parameters
             </h4>
-            <span className="text-[10px] font-mono text-fg-subtle">
-              Quote ID: {proposal.quote.pair}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-mono text-fg-subtle">
+              <span>Source: <strong className="text-fg-muted">{proposal.quote.source}</strong></span>
+              <span>·</span>
+              <span>{new Date(proposal.quote.timestamp).toISOString().replace("T", " ").substring(0, 19)} UTC</span>
+              <span>·</span>
+              <span>Age: <strong className="text-fg-muted">{(proposal.quote.age_seconds ?? Math.max(0, (Date.now() - new Date(proposal.quote.timestamp).getTime()) / 1000)).toFixed(1)}s</strong></span>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
@@ -472,7 +493,7 @@ export function TradeReviewCard({
                   <ArrowRight className="h-3 w-3 text-fg-subtle" />
                   <span
                     className={`font-bold tabular-nums ${
-                      proposal.portfolio_impact.projected_allocation_pct > 40
+                      proposal.portfolio_impact.projected_allocation_pct > concentrationThreshold
                         ? "text-warn"
                         : "text-accent"
                     }`}
@@ -484,7 +505,7 @@ export function TradeReviewCard({
               <div className="mt-2 h-1.5 w-full bg-border rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${
-                    proposal.portfolio_impact.projected_allocation_pct > 40
+                    proposal.portfolio_impact.projected_allocation_pct > concentrationThreshold
                       ? "bg-warn"
                       : "bg-accent"
                   }`}
@@ -497,7 +518,7 @@ export function TradeReviewCard({
                 />
               </div>
               <span className="mt-1.5 block text-[10px] text-fg-subtle">
-                Guideline threshold: 40% maximum allocation
+                Guideline threshold: {concentrationThreshold}% maximum allocation
               </span>
             </div>
 
@@ -564,6 +585,20 @@ export function TradeReviewCard({
                           ↳ {check.suggested_action}
                         </p>
                       )}
+                      {check.details && (check.details.observed || check.details.threshold) && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                          {check.details.observed && (
+                            <span className="rounded bg-surface px-1.5 py-0.5 border border-border text-fg-muted">
+                              Observed: <strong className="text-fg">{String(check.details.observed)}</strong>
+                            </span>
+                          )}
+                          {check.details.threshold && (
+                            <span className="rounded bg-surface px-1.5 py-0.5 border border-border text-fg-muted">
+                              Threshold: <strong className="text-fg">{String(check.details.threshold)}</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <span
@@ -595,7 +630,7 @@ export function TradeReviewCard({
               />
               <div className="space-y-0.5">
                 <span className="text-xs font-semibold text-fg block">
-                  I understand this trade exceeds my 40% concentration guideline.
+                  I understand this trade exceeds my {concentrationThreshold}% concentration guideline.
                 </span>
                 <span className="text-[11px] text-fg-muted block">
                   TradeGuard requires explicit human acknowledgement before proceeding with warning-flagged orders.
@@ -619,12 +654,22 @@ export function TradeReviewCard({
               <div className="pt-2">
                 <button
                   type="button"
+                  disabled={refreshing}
                   onClick={async () => {
                     const safeAmt = proposal.risk.suggested_safe_amount_usd;
                     if (safeAmt) {
-                      const newPrompt = `Buy $${safeAmt} of ${proposal.asset}`;
-                      const refreshed = await api.createProposal(newPrompt);
-                      if (onRefreshQuote) onRefreshQuote(refreshed);
+                      try {
+                        setRefreshing(true);
+                        setErrorMessage(null);
+                        const sideVerb = proposal.side === "BUY" ? "Buy" : "Sell";
+                        const newPrompt = `${sideVerb} $${safeAmt} of ${proposal.asset}`;
+                        const refreshed = await api.createProposal(newPrompt);
+                        if (onRefreshQuote) onRefreshQuote(refreshed);
+                      } catch (err: any) {
+                        setErrorMessage(err.message || "Failed to adjust order to safe amount.");
+                      } finally {
+                        setRefreshing(false);
+                      }
                     }
                   }}
                   className="rounded-lg bg-surface border border-danger/30 px-3 py-1.5 text-xs font-semibold text-fg hover:border-accent transition-colors flex items-center gap-1.5"

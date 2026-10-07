@@ -39,6 +39,8 @@ export interface QuoteSnapshot {
   timestamp: string;
   expires_at: string;
   source: string;
+  quote_id?: string;
+  age_seconds?: number;
 }
 
 export interface RiskCheckItem {
