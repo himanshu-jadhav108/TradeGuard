@@ -889,3 +889,323 @@ def test_session_hardening_missing_and_invalid_rejected_400():
     assert res_valid.status_code == 200
 
 
+# ==========================================
+# 8. P1-8 Comprehensive Verification Tests
+# ==========================================
+
+def test_stale_quote_at_confirm_via_api():
+    """Verify that confirming a proposal with an expired quote returns 409 and marks proposal EXPIRED."""
+    session = f"test-stale-confirm-{uuid.uuid4().hex[:6]}"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    # 1. Create valid proposal
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $100 of SOL"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_id = res_prop.json()["id"]
+
+    # 2. Force quote to expired state in SQLite DB
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE trade_proposals SET quote_snapshot = json_set(quote_snapshot, '$.timestamp', '2020-01-01T00:00:00Z', '$.expires_at', '2020-01-01T00:00:30Z') WHERE id = ?",
+            (prop_id,)
+        )
+
+    # 3. Attempt confirmation: must be rejected with 409 Conflict
+    res_confirm = client.post(f"/api/trades/{prop_id}/confirm", json={"proposal_id": prop_id}, headers=headers)
+    assert res_confirm.status_code == 409
+    assert "expired" in res_confirm.json()["detail"].lower()
+
+    # 4. Verify proposal is marked EXPIRED and audit stream has PROPOSAL_EXPIRED
+    prop_record = Storage.get_proposal(prop_id, user_id=session)
+    assert prop_record.status == "EXPIRED"
+
+    events = client.get("/api/activity", headers=headers).json()
+    assert any(e["event_type"] == "PROPOSAL_EXPIRED" and e["proposal_id"] == prop_id for e in events)
+
+
+def test_warning_acknowledgement_required_and_recorded_in_audit():
+    """Verify that a WARN trade requires acknowledgement, rejects without it, and records WARNING_ACKNOWLEDGED."""
+    session = f"test-warn-ack-{uuid.uuid4().hex[:6]}"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    # 1. Create a proposal that triggers concentration warning (> 40% BTC guideline)
+    # Portfolio starts with 0.15 BTC ($12.9k) out of $28.8k (~45%). An extra $1000 BTC triggers WARN.
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $1000 of BTC"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_data = res_prop.json()
+    prop_id = prop_data["id"]
+    assert prop_data["risk"]["overall_status"] == "WARN"
+
+    # 2. Confirming WITHOUT acknowledgement must return HTTP 400
+    res_unack = client.post(
+        f"/api/trades/{prop_id}/confirm",
+        json={"proposal_id": prop_id, "acknowledged_warnings": False},
+        headers=headers,
+    )
+    assert res_unack.status_code == 400
+    assert "acknowledgement" in res_unack.json()["detail"].lower()
+
+    # Verify CONFIRM_REJECTED event recorded
+    events_unack = client.get("/api/activity", headers=headers).json()
+    assert any(e["event_type"] == "CONFIRM_REJECTED" and e["proposal_id"] == prop_id for e in events_unack)
+
+    # 3. Confirming WITH acknowledgement succeeds with HTTP 200
+    res_ack = client.post(
+        f"/api/trades/{prop_id}/confirm",
+        json={"proposal_id": prop_id, "acknowledged_warnings": True},
+        headers=headers,
+    )
+    assert res_ack.status_code == 200
+    assert res_ack.json()["status"] == "FILLED"
+
+    # 4. Verify WARNING_ACKNOWLEDGED event is in the audit stream
+    events_filled = client.get("/api/activity", headers=headers).json()
+    ack_event = next(e for e in events_filled if e["event_type"] == "WARNING_ACKNOWLEDGED" and e["proposal_id"] == prop_id)
+    assert ack_event is not None
+    assert ack_event["is_recorded"] is True
+    assert ack_event["seq"] is not None
+
+
+@pytest.mark.asyncio
+async def test_stubbed_uat_timeout_handling(monkeypatch):
+    """Verify that when UAT gateway times out during order execution, order is marked FAILED and proposal is locked."""
+    from app.core.config import settings
+    from app.domain.models import QuoteSnapshot, RiskResult, PortfolioImpact, OrderSide, AmountType, TradeProposal, TradeConfirmRequest
+    from app.services.order_service import OrderService
+    from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
+    from app.db.store import Storage
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    async def mock_create_order(self, pair, side, quantity, quote_id=None, user_id="demo-user-1"):
+        return {"id": "gw-order-timeout-test", "status": "PENDING"}
+
+    async def mock_execute_order(self, order_id, signature=None, user_id="demo-user-1"):
+        raise TrueMarketsClientError("Gateway execution timed out", status_code=504, error_code="GATEWAY_TIMEOUT")
+
+    monkeypatch.setattr(TrueMarketsClient, "create_order", mock_create_order)
+    monkeypatch.setattr(TrueMarketsClient, "execute_order", mock_execute_order)
+
+    user_id = f"test-uat-timeout-{uuid.uuid4().hex[:6]}"
+    Storage.reset_session(user_id)
+
+    quote = QuoteSnapshot(
+        pair="BTC/USDC",
+        base_asset="BTC",
+        quote_asset="USDC",
+        bid=86000.0,
+        ask=86100.0,
+        mid=86050.0,
+        spread_pct=0.116,
+        timestamp="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        source="TRUE_MARKETS_UAT",
+        quote_id="gw-q-timeout",
+    )
+
+    prop = TradeProposal(
+        id=f"prop-uat-timeout-{uuid.uuid4().hex[:6]}",
+        user_id=user_id,
+        asset="BTC",
+        side=OrderSide.BUY,
+        request_amount=100.0,
+        request_amount_type=AmountType.USD,
+        estimated_qty=0.00116,
+        estimated_notional_usd=100.0,
+        quote=quote,
+        risk=RiskResult(overall_status="PASS", can_execute=True, checks=[]),
+        portfolio_impact=PortfolioImpact(
+            asset="BTC", current_qty=0.0, current_value_usd=0.0, current_allocation_pct=0.0,
+            projected_qty=0.00116, projected_value_usd=100.0, projected_allocation_pct=1.0,
+            cash_before_usd=10000.0, cash_after_usd=9900.0,
+            total_portfolio_value_before=10000.0, total_portfolio_value_after=10000.0,
+        ),
+        explanation="Testing UAT timeout",
+        created_at="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        status="PENDING_CONFIRMATION",
+    )
+    Storage.save_proposal(prop)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await OrderService.confirm_proposal(
+            proposal_id=prop.id,
+            confirm_req=TradeConfirmRequest(proposal_id=prop.id),
+            user_id=user_id,
+        )
+    assert exc_info.value.status_code == 504
+    assert "Order marked FAILED" in exc_info.value.detail
+
+    # Verify proposal status is FAILED and cannot be released or confirmed again
+    p_check = Storage.get_proposal(prop.id, user_id=user_id)
+    assert p_check.status == "FAILED"
+
+
+def test_crash_after_fill_transaction_atomicity(monkeypatch):
+    """Verify that if an error occurs within execute_demo_fill_atomic, the entire transaction rolls back."""
+    import sqlite3
+    from decimal import Decimal
+    from app.domain.models import QuoteSnapshot, RiskResult, PortfolioImpact, OrderSide, AmountType, TradeProposal
+
+    session = f"test-crash-atomic-{uuid.uuid4().hex[:6]}"
+    Storage.reset_session(session)
+
+    init_portfolio = Storage.get_portfolio(session)
+    init_cash = init_portfolio["cash_usd"]
+
+    quote = QuoteSnapshot(
+        pair="BTC/USDC", base_asset="BTC", quote_asset="USDC",
+        bid=86000.0, ask=86100.0, mid=86050.0, spread_pct=0.116,
+        timestamp="2026-10-11T12:00:00Z", expires_at="2026-10-11T12:05:00Z",
+        source="DEMO_SIMULATOR",
+    )
+    prop = TradeProposal(
+        id=f"prop-crash-{uuid.uuid4().hex[:6]}",
+        user_id=session,
+        asset="BTC",
+        side=OrderSide.BUY,
+        request_amount=500.0,
+        request_amount_type=AmountType.USD,
+        estimated_qty=0.0058,
+        estimated_notional_usd=500.0,
+        quote=quote,
+        risk=RiskResult(overall_status="PASS", can_execute=True, checks=[]),
+        portfolio_impact=PortfolioImpact(
+            asset="BTC", current_qty=0.0, current_value_usd=0.0, current_allocation_pct=0.0,
+            projected_qty=0.0058, projected_value_usd=500.0, projected_allocation_pct=1.0,
+            cash_before_usd=init_cash, cash_after_usd=init_cash - 500.0,
+            total_portfolio_value_before=init_cash, total_portfolio_value_after=init_cash,
+        ),
+        explanation="Testing crash rollback",
+        created_at="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        status="CONFIRMING",
+    )
+    Storage.save_proposal(prop)
+
+    # Intentionally trigger an error by attempting to fill with a notional exceeding cash balance
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        Storage.execute_demo_fill_atomic(
+            proposal_id=prop.id,
+            user_id=session,
+            asset="BTC",
+            side=OrderSide.BUY,
+            estimated_qty=0.0058,
+            estimated_notional_usd=99999999.0,  # Far exceeds cash balance ($10,000)!
+            fill_price=86100.0,
+            acknowledged_warnings=False,
+        )
+    assert exc_info.value.status_code == 400
+
+    # Verify that portfolio cash was NOT touched
+    after_portfolio = Storage.get_portfolio(session)
+    assert after_portfolio["cash_usd"] == init_cash
+
+    # Verify that proposal status was safely restored to PENDING_CONFIRMATION (cannot fill without balance)
+    p_check = Storage.get_proposal(prop.id, user_id=session)
+    assert p_check.status == "PENDING_CONFIRMATION"
+
+    # Verify that no order was persisted in the database
+    with get_db() as conn:
+        row = conn.execute("SELECT COUNT(*) as cnt FROM orders WHERE proposal_id = ?", (prop.id,)).fetchone()
+        assert row["cnt"] == 0
+
+    # 2. Test mid-transaction crash rollback
+    # Claim proposal to CONFIRMING again
+    Storage.update_proposal_status(prop.id, "CONFIRMING", user_id=session)
+
+    # Force a database exception during execution by wrapping connection
+    class CrashCursor:
+        def __init__(self, cur):
+            self._cur = cur
+        def __getattr__(self, name):
+            return getattr(self._cur, name)
+        def execute(self, sql, *args, **kwargs):
+            if "INSERT INTO orders" in sql:
+                raise sqlite3.OperationalError("Simulated disk I/O crash during order insertion")
+            return self._cur.execute(sql, *args, **kwargs)
+
+    class MockConnectionWrapper:
+        def __init__(self, conn):
+            self._conn = conn
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+        def __enter__(self):
+            self._conn.__enter__()
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return self._conn.__exit__(exc_type, exc_val, exc_tb)
+        def cursor(self):
+            return CrashCursor(self._conn.cursor())
+
+    orig_get_db = get_db
+    monkeypatch.setattr("app.db.store.get_db", lambda: MockConnectionWrapper(orig_get_db()))
+
+    with pytest.raises(HTTPException) as exc_crash:
+        Storage.execute_demo_fill_atomic(
+            proposal_id=prop.id,
+            user_id=session,
+            asset="BTC",
+            side=OrderSide.BUY,
+            estimated_qty=0.0058,
+            estimated_notional_usd=500.0,
+            fill_price=86100.0,
+            acknowledged_warnings=False,
+        )
+    assert exc_crash.value.status_code == 500
+    assert "Simulated disk I/O crash" in exc_crash.value.detail
+
+    # Cash must still be unchanged after rollback
+    crash_portfolio = Storage.get_portfolio(session)
+    assert crash_portfolio["cash_usd"] == init_cash
+
+    # No order persisted
+    with orig_get_db() as conn_check:
+        row_check = conn_check.execute("SELECT COUNT(*) as cnt FROM orders WHERE proposal_id = ?", (prop.id,)).fetchone()
+        assert row_check["cnt"] == 0
+
+
+def test_strict_monotonic_event_ordering_across_lifecycle():
+    """Verify that all events recorded across a trade lifecycle have strictly monotonic seq numbers."""
+    session = f"test-event-seq-{uuid.uuid4().hex[:6]}"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    # 1. Parse intent
+    res_parse = client.post("/api/intent/parse", json={"prompt": "Buy $150 of SOL"}, headers=headers)
+    assert res_parse.status_code == 200
+
+    # 2. Create proposal
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $150 of SOL"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_id = res_prop.json()["id"]
+
+    # 3. Confirm trade
+    res_confirm = client.post(f"/api/trades/{prop_id}/confirm", json={"proposal_id": prop_id}, headers=headers)
+    assert res_confirm.status_code == 200
+
+    # 4. Fetch activity events
+    events = client.get("/api/activity", headers=headers).json()
+    assert len(events) >= 3
+
+    # Activity endpoint returns ORDER BY seq DESC
+    seqs_desc = [e["seq"] for e in events]
+    assert all(isinstance(s, int) for s in seqs_desc)
+    for i in range(len(seqs_desc) - 1):
+        assert seqs_desc[i] > seqs_desc[i + 1], f"Expected seq {seqs_desc[i]} > {seqs_desc[i+1]}"
+
+    # Verify timestamps are ISO 8601 formatted
+    from datetime import datetime
+    for e in events:
+        ts = datetime.fromisoformat(e["timestamp"].replace("Z", "+00:00"))
+        assert ts is not None
+        assert e["is_recorded"] is True
+
+
+
