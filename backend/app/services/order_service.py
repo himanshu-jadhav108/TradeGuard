@@ -60,8 +60,27 @@ class OrderService:
                 detail=f"Proposal has already been processed or is currently executing (status: {status_desc}). Double confirmation is prevented.",
             )
 
-        try:
-            # 6. Re-verify user balance at moment of execution
+        # 6. Route Execution based on Environment
+        tm_client = TrueMarketsClient()
+        is_real_uat = settings.TM_ENV == "uat" and tm_client.is_configured()
+
+        if not is_real_uat:
+            # DETERMINISTIC DEMO SIMULATION (Atomic single transaction BEGIN IMMEDIATE)
+            fill_price = proposal.quote.ask if proposal.side == OrderSide.BUY else proposal.quote.bid
+            return Storage.execute_demo_fill_atomic(
+                proposal_id=proposal_id,
+                user_id=user_id,
+                asset=proposal.asset,
+                side=proposal.side,
+                estimated_qty=proposal.estimated_qty,
+                estimated_notional_usd=proposal.estimated_notional_usd,
+                fill_price=fill_price,
+                raw_prompt=proposal.raw_prompt,
+            )
+
+        else:
+            # REAL TRUE MARKETS UAT GATEWAY EXECUTION
+            # Pre-execution balance check
             portfolio_data = Storage.get_portfolio(user_id)
             d_cash = Decimal(str(portfolio_data["cash_usd"]))
             positions = {k: Decimal(str(v)) for k, v in portfolio_data["positions"].items()}
@@ -84,147 +103,110 @@ class OrderService:
             now = datetime.now(timezone.utc).isoformat()
             order_id = f"ord-{uuid.uuid4().hex[:12]}"
 
-            # 7. Route Execution based on Environment
-            tm_client = TrueMarketsClient()
-            is_real_uat = settings.TM_ENV == "uat" and tm_client.is_configured()
+            # Dispatch to gateway
+            try:
+                gw_order = await tm_client.create_order(
+                    pair=proposal.quote.pair,
+                    side=proposal.side.value,
+                    quantity=proposal.estimated_qty,
+                    quote_id=proposal.quote.quote_id,
+                    user_id=user_id,
+                )
+            except TrueMarketsClientError as e:
+                # Creation failed before gateway order existed: safe to release claim
+                Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
+                raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
-            if not is_real_uat:
-                # DETERMINISTIC DEMO SIMULATION
-                external_order_id = f"demo-sim-{uuid.uuid4().hex[:8]}"
-                fill_price = proposal.quote.ask if proposal.side == OrderSide.BUY else proposal.quote.bid
+            ext_id = gw_order.get("id") or gw_order.get("order_id")
 
-                # Update portfolio balances using Decimal arithmetic
-                if proposal.side == OrderSide.BUY:
-                    new_cash = (d_cash - d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    positions[proposal.asset] = (positions.get(proposal.asset, Decimal("0")) + d_qty).quantize(
-                        Decimal("0.000001"), rounding=ROUND_HALF_UP
-                    )
-                else:
-                    new_cash = (d_cash + d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    positions[proposal.asset] = max(
-                        Decimal("0"), positions.get(proposal.asset, Decimal("0")) - d_qty
-                    ).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+            # Persist order immediately with external ID
+            # CRITICAL: Never release proposal claim once gateway order exists!
+            order = OrderRecord(
+                id=order_id,
+                proposal_id=proposal.id,
+                user_id=user_id,
+                asset=proposal.asset,
+                side=proposal.side,
+                quantity=proposal.estimated_qty,
+                notional_usd=proposal.estimated_notional_usd,
+                status=OrderStatus.SUBMITTED,
+                external_order_id=ext_id,
+                fill_price=None,  # Never use quote mid
+                created_at=now,
+                updated_at=now,
+                mode="UAT",
+                audit_id=f"audit-{order_id}",
+                raw_prompt=proposal.raw_prompt,
+            )
+            Storage.save_order(order)
 
-                # Persist state
-                float_positions = {k: float(v) for k, v in positions.items()}
-                Storage.update_portfolio(user_id, float(new_cash), float_positions)
+            Storage.save_audit_event(AuditEvent(
+                id=f"evt-{uuid.uuid4().hex[:12]}",
+                user_id=user_id,
+                event_type="UAT_ORDER_SUBMITTED",
+                proposal_id=proposal_id,
+                order_id=order_id,
+                summary=f"Submitted to True Markets UAT Gateway: Order ID {ext_id}.",
+                metadata={"external_id": ext_id, "mode": "UAT"},
+                timestamp=now,
+            ))
+
+            # Execute order (Never blindly retry execute)
+            try:
+                exec_res = await tm_client.execute_order(order_id=ext_id, user_id=user_id)
+                status_str = exec_res.get("status", "SUBMITTED").upper()
+                order_status = OrderStatus.FILLED if status_str in ("FILLED", "COMPLETED") else OrderStatus.SUBMITTED
+
+                gateway_fill_price = None
+                if order_status == OrderStatus.FILLED:
+                    raw_fill = exec_res.get("fill_price") or exec_res.get("price") or gw_order.get("fill_price")
+                    if raw_fill is not None:
+                        try:
+                            gateway_fill_price = float(raw_fill)
+                        except (ValueError, TypeError):
+                            gateway_fill_price = None
+
+                now_up = datetime.now(timezone.utc).isoformat()
+                order.status = order_status
+                order.fill_price = gateway_fill_price
+                order.updated_at = now_up
+                Storage.save_order(order)
                 Storage.update_proposal_status(proposal_id, "CONFIRMED", user_id=user_id)
 
-                order = OrderRecord(
-                    id=order_id,
-                    proposal_id=proposal.id,
-                    user_id=user_id,
-                    asset=proposal.asset,
-                    side=proposal.side,
-                    quantity=proposal.estimated_qty,
-                    notional_usd=proposal.estimated_notional_usd,
-                    status=OrderStatus.FILLED,
-                    external_order_id=external_order_id,
-                    fill_price=fill_price,
-                    created_at=now,
-                    updated_at=now,
-                    mode="DEMO",
-                    audit_id=f"audit-{order_id}",
-                    raw_prompt=proposal.raw_prompt,
-                )
-                Storage.save_order(order)
-
-                # Structured Audit Trail
                 Storage.save_audit_event(AuditEvent(
                     id=f"evt-{uuid.uuid4().hex[:12]}",
                     user_id=user_id,
-                    event_type="TRADE_CONFIRMED",
+                    event_type="ORDER_FILLED" if order_status == OrderStatus.FILLED else "ORDER_EXECUTED",
                     proposal_id=proposal_id,
                     order_id=order_id,
-                    summary=f"User explicitly confirmed {proposal.side.value} {proposal.estimated_qty:,.6f} {proposal.asset} (Simulated Demo).",
-                    metadata={"mode": "DEMO", "notional_usd": proposal.estimated_notional_usd},
-                    timestamp=now,
-                ))
-
-                Storage.save_audit_event(AuditEvent(
-                    id=f"evt-{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    event_type="ORDER_FILLED",
-                    proposal_id=proposal_id,
-                    order_id=order_id,
-                    summary=f"Simulated order filled at ${fill_price:,.2f} USDC (External ID: {external_order_id}).",
-                    metadata={
-                        "fill_price": fill_price,
-                        "quantity": proposal.estimated_qty,
-                        "cash_after": float(new_cash),
-                        "mode": "DEMO",
-                    },
-                    timestamp=now,
+                    summary=f"True Markets Gateway executed order {ext_id} (Status: {order_status.value}).",
+                    metadata={"external_id": ext_id, "status": order_status.value, "fill_price": gateway_fill_price, "mode": "UAT"},
+                    timestamp=now_up,
                 ))
 
                 return order
 
-            else:
-                # REAL TRUE MARKETS UAT GATEWAY EXECUTION
-                try:
-                    gw_order = await tm_client.create_order(
-                        pair=proposal.quote.pair,
-                        side=proposal.side.value,
-                        quantity=proposal.estimated_qty,
-                        quote_id=proposal.quote.quote_id,
-                        user_id=user_id,
-                    )
-                    ext_id = gw_order.get("id") or gw_order.get("order_id")
+            except Exception as exec_err:
+                # On execute failure: mark order FAILED, mark proposal FAILED, require a new proposal
+                now_err = datetime.now(timezone.utc).isoformat()
+                order.status = OrderStatus.FAILED
+                order.updated_at = now_err
+                Storage.save_order(order)
+                Storage.update_proposal_status(proposal_id, "FAILED", user_id=user_id)
 
-                    exec_res = await tm_client.execute_order(order_id=ext_id, user_id=user_id)
-                    status_str = exec_res.get("status", "SUBMITTED").upper()
+                Storage.save_audit_event(AuditEvent(
+                    id=f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id=user_id,
+                    event_type="ORDER_FAILED",
+                    proposal_id=proposal_id,
+                    order_id=order_id,
+                    summary=f"True Markets execution failed for Order ID {ext_id}: {str(exec_err)}.",
+                    metadata={"external_id": ext_id, "error": str(exec_err), "mode": "UAT"},
+                    timestamp=now_err,
+                ))
 
-                    order_status = OrderStatus.FILLED if status_str in ("FILLED", "COMPLETED") else OrderStatus.SUBMITTED
-
-                    # Never use quote mid as a fill price
-                    gateway_fill_price = None
-                    if order_status == OrderStatus.FILLED:
-                        raw_fill = exec_res.get("fill_price") or exec_res.get("price") or gw_order.get("fill_price")
-                        if raw_fill is not None:
-                            try:
-                                gateway_fill_price = float(raw_fill)
-                            except (ValueError, TypeError):
-                                gateway_fill_price = None
-
-                    order = OrderRecord(
-                        id=order_id,
-                        proposal_id=proposal.id,
-                        user_id=user_id,
-                        asset=proposal.asset,
-                        side=proposal.side,
-                        quantity=proposal.estimated_qty,
-                        notional_usd=proposal.estimated_notional_usd,
-                        status=order_status,
-                        external_order_id=ext_id,
-                        fill_price=gateway_fill_price,
-                        created_at=now,
-                        updated_at=now,
-                        mode="UAT",
-                        audit_id=f"audit-{order_id}",
-                        raw_prompt=proposal.raw_prompt,
-                    )
-
-                    Storage.update_proposal_status(proposal_id, "CONFIRMED", user_id=user_id)
-                    Storage.save_order(order)
-
-                    Storage.save_audit_event(AuditEvent(
-                        id=f"evt-{uuid.uuid4().hex[:12]}",
-                        user_id=user_id,
-                        event_type="UAT_ORDER_SUBMITTED",
-                        proposal_id=proposal_id,
-                        order_id=order_id,
-                        summary=f"Submitted to True Markets UAT Gateway: Order ID {ext_id}, Status: {status_str}.",
-                        metadata={"external_id": ext_id, "status": status_str, "mode": "UAT"},
-                        timestamp=now,
-                    ))
-
-                    return order
-
-                except TrueMarketsClientError as e:
-                    Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
-                    raise HTTPException(status_code=e.status_code or 500, detail=str(e))
-
-        except Exception:
-            # If unexpected error occurred during execution, release lock if safe
-            Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
-            raise
+                status_code = getattr(exec_err, "status_code", 502) or 502
+                raise HTTPException(
+                    status_code=status_code,
+                    detail=f"Gateway execution failed for external order '{ext_id}'. Order marked FAILED. Please request a new proposal."
+                )

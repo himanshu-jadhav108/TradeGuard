@@ -104,9 +104,19 @@ def cancel_trade(
     proposal = Storage.get_proposal(proposal_id, user_id=session_id)
     if not proposal:
         raise HTTPException(status_code=404, detail="Proposal not found")
-    if proposal.status in ("CONFIRMED", "FILLED"):
-        raise HTTPException(status_code=400, detail="Executed orders cannot be cancelled.")
-    Storage.update_proposal_status(proposal_id, "CANCELLED", user_id=session_id)
+    if proposal.status != "PENDING_CONFIRMATION":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel trade in status '{proposal.status}'. Cancellation is only allowed when PENDING_CONFIRMATION.",
+        )
+    cancelled = Storage.cancel_proposal(proposal_id, user_id=session_id)
+    if not cancelled:
+        p_check = Storage.get_proposal(proposal_id, user_id=session_id)
+        curr = p_check.status if p_check else "UNKNOWN"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel trade in status '{curr}'. Cancellation is only allowed when PENDING_CONFIRMATION.",
+        )
     return {"status": "CANCELLED", "proposal_id": proposal_id}
 
 

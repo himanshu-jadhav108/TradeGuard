@@ -1,9 +1,11 @@
 import json
 import sqlite3
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from app.domain.models import AuditEvent, OrderRecord, OrderStatus, Position, TradeProposal
+from fastapi import HTTPException
+from app.domain.models import AuditEvent, OrderRecord, OrderSide, OrderStatus, Position, TradeProposal
 
 DB_PATH = Path(__file__).parent.parent.parent / "tradeguard.db"
 
@@ -266,6 +268,227 @@ class Storage:
             else:
                 conn.execute("UPDATE trade_proposals SET status = ? WHERE id = ?", (status, proposal_id))
         conn.close()
+
+    @staticmethod
+    def cancel_proposal(proposal_id: str, user_id: str) -> bool:
+        """
+        Atomically cancels a proposal if and only if it is in PENDING_CONFIRMATION.
+        Also records TRADE_CANCELLED audit event in the same transaction.
+        """
+        conn = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        import uuid
+        with conn:
+            cur = conn.cursor()
+            cur.execute("""
+                UPDATE trade_proposals
+                SET status = 'CANCELLED'
+                WHERE id = ? AND user_id = ? AND status = 'PENDING_CONFIRMATION'
+            """, (proposal_id, user_id))
+            cancelled = cur.rowcount > 0
+            if cancelled:
+                cur.execute("""
+                    INSERT INTO audit_events (
+                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
+                    ) VALUES (?, ?, 'TRADE_CANCELLED', ?, NULL, ?, ?, ?)
+                """, (
+                    f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id,
+                    proposal_id,
+                    "Proposal cancelled while in PENDING_CONFIRMATION.",
+                    json.dumps({"mode": "DEMO"}),
+                    now,
+                ))
+        conn.close()
+        return cancelled
+
+    @staticmethod
+    def execute_demo_fill_atomic(
+        proposal_id: str,
+        user_id: str,
+        asset: str,
+        side: OrderSide,
+        estimated_qty: float,
+        estimated_notional_usd: float,
+        fill_price: float,
+        raw_prompt: Optional[str] = None,
+    ) -> OrderRecord:
+        """
+        Executes a demo order fill atomically in a single BEGIN IMMEDIATE transaction:
+        1. Verifies proposal is in CONFIRMING state.
+        2. Re-checks portfolio balances directly in DB.
+        3. Updates cash and asset positions with Decimal-grade precision.
+        4. Transitions proposal status to CONFIRMED.
+        5. Persists OrderRecord with FILLED status.
+        6. Appends TRADE_CONFIRMED and ORDER_FILLED audit events.
+        Rolls back entirely on any error.
+        """
+        Storage.ensure_session(user_id)
+        conn = get_db()
+        conn.isolation_level = None
+        cur = conn.cursor()
+        now = datetime.now(timezone.utc).isoformat()
+        import uuid
+
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+
+            # 1. Verify proposal exists and is in CONFIRMING state
+            cur.execute("SELECT status FROM trade_proposals WHERE id = ? AND user_id = ?", (proposal_id, user_id))
+            p_row = cur.fetchone()
+            if not p_row:
+                cur.execute("ROLLBACK")
+                raise HTTPException(status_code=404, detail=f"Proposal '{proposal_id}' not found.")
+            if p_row["status"] != "CONFIRMING":
+                cur.execute("ROLLBACK")
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Proposal cannot be filled (status: {p_row['status']}). Expected CONFIRMING."
+                )
+
+            # 2. Re-check user balances inside the transaction
+            cur.execute("SELECT cash_usd FROM portfolios WHERE user_id = ?", (user_id,))
+            port_row = cur.fetchone()
+            cash_val = port_row["cash_usd"] if port_row else 10000.0
+
+            cur.execute("SELECT asset, quantity FROM positions WHERE user_id = ?", (user_id,))
+            positions = {r["asset"]: Decimal(str(r["quantity"])) for r in cur.fetchall()}
+
+            d_cash = Decimal(str(cash_val))
+            d_notional = Decimal(str(estimated_notional_usd))
+            d_qty = Decimal(str(estimated_qty))
+
+            if side == OrderSide.BUY and d_notional > d_cash:
+                cur.execute("UPDATE trade_proposals SET status = 'PENDING_CONFIRMATION' WHERE id = ?", (proposal_id,))
+                cur.execute("COMMIT")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient cash balance at confirmation. Needed: ${float(d_notional):,.2f}, Available: ${float(d_cash):,.2f}"
+                )
+            elif side == OrderSide.SELL and d_qty > positions.get(asset, Decimal("0")):
+                cur.execute("UPDATE trade_proposals SET status = 'PENDING_CONFIRMATION' WHERE id = ?", (proposal_id,))
+                cur.execute("COMMIT")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient {asset} balance at confirmation. Needed: {float(d_qty):,.6f}, Owned: {float(positions.get(asset, Decimal('0'))):,.6f}"
+                )
+
+            # 3. Update portfolio balances using Decimal arithmetic
+            if side == OrderSide.BUY:
+                new_cash = (d_cash - d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                new_asset_qty = (positions.get(asset, Decimal("0")) + d_qty).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                )
+            else:
+                new_cash = (d_cash + d_notional).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                new_asset_qty = max(Decimal("0"), positions.get(asset, Decimal("0")) - d_qty).quantize(
+                    Decimal("0.000001"), rounding=ROUND_HALF_UP
+                )
+
+            cur.execute(
+                "UPDATE portfolios SET cash_usd = ?, updated_at = ? WHERE user_id = ?",
+                (float(new_cash), now, user_id),
+            )
+            cur.execute("""
+                INSERT INTO positions (user_id, asset, quantity, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id, asset) DO UPDATE SET quantity = excluded.quantity, updated_at = excluded.updated_at
+            """, (user_id, asset, float(new_asset_qty), now))
+
+            # 4. Update proposal status to CONFIRMED
+            cur.execute("UPDATE trade_proposals SET status = 'CONFIRMED' WHERE id = ?", (proposal_id,))
+
+            # 5. Insert order record
+            order_id = f"ord-{uuid.uuid4().hex[:12]}"
+            external_order_id = f"demo-sim-{uuid.uuid4().hex[:8]}"
+            order = OrderRecord(
+                id=order_id,
+                proposal_id=proposal_id,
+                user_id=user_id,
+                asset=asset,
+                side=side,
+                quantity=estimated_qty,
+                notional_usd=estimated_notional_usd,
+                status=OrderStatus.FILLED,
+                external_order_id=external_order_id,
+                fill_price=fill_price,
+                created_at=now,
+                updated_at=now,
+                mode="DEMO",
+                audit_id=f"audit-{order_id}",
+                raw_prompt=raw_prompt,
+            )
+
+            cur.execute("""
+                INSERT INTO orders (
+                    id, proposal_id, user_id, asset, side, quantity, notional_usd,
+                    status, external_order_id, fill_price, raw_safe_metadata, mode,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                order.id,
+                order.proposal_id,
+                order.user_id,
+                order.asset,
+                order.side.value,
+                order.quantity,
+                order.notional_usd,
+                order.status.value,
+                order.external_order_id,
+                order.fill_price,
+                json.dumps({"mode": order.mode, "audit_id": order.audit_id, "raw_prompt": order.raw_prompt}),
+                order.mode,
+                order.created_at,
+                order.updated_at,
+            ))
+
+            # 6. Audit events (inside same transaction)
+            cur.execute("""
+                INSERT INTO audit_events (
+                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
+                ) VALUES (?, ?, 'TRADE_CONFIRMED', ?, ?, ?, ?, ?)
+            """, (
+                f"evt-{uuid.uuid4().hex[:12]}",
+                user_id,
+                proposal_id,
+                order_id,
+                f"User explicitly confirmed {side.value} {estimated_qty:,.6f} {asset} (Simulated Demo).",
+                json.dumps({"mode": "DEMO", "notional_usd": estimated_notional_usd}),
+                now,
+            ))
+
+            cur.execute("""
+                INSERT INTO audit_events (
+                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
+                ) VALUES (?, ?, 'ORDER_FILLED', ?, ?, ?, ?, ?)
+            """, (
+                f"evt-{uuid.uuid4().hex[:12]}",
+                user_id,
+                proposal_id,
+                order_id,
+                f"Simulated order filled at ${fill_price:,.2f} USDC (External ID: {external_order_id}).",
+                json.dumps({
+                    "fill_price": fill_price,
+                    "quantity": estimated_qty,
+                    "cash_after": float(new_cash),
+                    "mode": "DEMO",
+                }),
+                now,
+            ))
+
+            cur.execute("COMMIT")
+            return order
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            try:
+                cur.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise HTTPException(status_code=500, detail=f"Database transaction error during fill: {str(e)}")
+        finally:
+            conn.close()
 
     @staticmethod
     def save_order(order: OrderRecord):

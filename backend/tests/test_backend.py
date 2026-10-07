@@ -525,3 +525,155 @@ async def test_uat_order_passes_quote_id_and_never_uses_mid_as_fill_price(monkey
     assert order.status.value == "SUBMITTED"
     assert order.fill_price is None
     assert order.fill_price != quote.mid
+
+
+# ==========================================
+# 7. Atomic Execution & State Integrity (P0-4)
+# ==========================================
+
+def test_forced_failure_after_fill_cannot_double_fill():
+    session = "test-atomic-fill-double"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $500 of SOL"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_id = res_prop.json()["id"]
+
+    # Initial confirmation: succeeds
+    res_first = client.post(f"/api/trades/{prop_id}/confirm", json={"proposal_id": prop_id}, headers=headers)
+    assert res_first.status_code == 200
+    assert res_first.json()["status"] == "FILLED"
+
+    port_after_first = client.get("/api/portfolio", headers=headers).json()
+    assert port_after_first["cash_usd"] == 9500.0
+
+    # Forced double fill attempt: must return 409
+    res_second = client.post(f"/api/trades/{prop_id}/confirm", json={"proposal_id": prop_id}, headers=headers)
+    assert res_second.status_code == 409
+    assert "Double confirmation is prevented" in res_second.json()["detail"] or "already been processed" in res_second.json()["detail"]
+
+    # Balances must be strictly unchanged (only filled once)
+    port_after_second = client.get("/api/portfolio", headers=headers).json()
+    assert port_after_second["cash_usd"] == 9500.0
+
+
+def test_cancel_during_confirming_returns_409():
+    session = "test-cancel-race"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $500 of SOL"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_id = res_prop.json()["id"]
+
+    # Transition to CONFIRMING directly in store
+    claimed = Storage.claim_proposal_for_confirmation(prop_id, user_id=session)
+    assert claimed is True
+
+    # Cancel while CONFIRMING must return 409 Conflict
+    res_cancel = client.post(f"/api/trades/{prop_id}/cancel", headers=headers)
+    assert res_cancel.status_code == 409
+    assert "CONFIRMING" in res_cancel.json()["detail"]
+    assert "PENDING_CONFIRMATION" in res_cancel.json()["detail"]
+
+
+def test_cancel_only_allowed_from_pending_confirmation():
+    session = "test-cancel-state-rules"
+    headers = {"X-Session-ID": session}
+    client.post("/api/session/reset", headers=headers)
+
+    res_prop = client.post("/api/trades/proposals", json={"prompt": "Buy $500 of SOL"}, headers=headers)
+    assert res_prop.status_code == 200
+    prop_id = res_prop.json()["id"]
+
+    # First cancel from PENDING_CONFIRMATION: succeeds with 200
+    res_cancel_1 = client.post(f"/api/trades/{prop_id}/cancel", headers=headers)
+    assert res_cancel_1.status_code == 200
+    assert res_cancel_1.json()["status"] == "CANCELLED"
+
+    # Second cancel from CANCELLED: must return 409 Conflict
+    res_cancel_2 = client.post(f"/api/trades/{prop_id}/cancel", headers=headers)
+    assert res_cancel_2.status_code == 409
+    assert "CANCELLED" in res_cancel_2.json()["detail"]
+
+
+async def test_uat_execute_failure_marks_order_failed_and_locks_proposal(monkeypatch):
+    from app.core.config import settings
+    from app.domain.models import QuoteSnapshot, RiskResult, PortfolioImpact, OrderSide, AmountType, TradeProposal, TradeConfirmRequest, OrderStatus
+    from app.services.order_service import OrderService
+    from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
+    from app.db.store import Storage
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    async def mock_create_order(self, pair, side, quantity, quote_id=None, user_id="demo-user-1"):
+        return {"id": "gw-order-fail-test", "status": "PENDING"}
+
+    async def mock_execute_order(self, order_id, signature=None, user_id="demo-user-1"):
+        raise TrueMarketsClientError("Execution gateway rejection", status_code=500)
+
+    monkeypatch.setattr(TrueMarketsClient, "create_order", mock_create_order)
+    monkeypatch.setattr(TrueMarketsClient, "execute_order", mock_execute_order)
+
+    user_id = "test-uat-fail-lock-user"
+    Storage.reset_session(user_id)
+
+    quote = QuoteSnapshot(
+        pair="BTC/USDC",
+        base_asset="BTC",
+        quote_asset="USDC",
+        bid=86000.0,
+        ask=86100.0,
+        mid=86050.0,
+        spread_pct=0.116,
+        timestamp="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        source="TRUE_MARKETS_UAT",
+        quote_id="gw-q-1",
+    )
+
+    prop = TradeProposal(
+        id="prop-test-uat-fail-1",
+        user_id=user_id,
+        asset="BTC",
+        side=OrderSide.BUY,
+        request_amount=100.0,
+        request_amount_type=AmountType.USD,
+        estimated_qty=0.00116,
+        estimated_notional_usd=100.0,
+        quote=quote,
+        risk=RiskResult(overall_status="PASS", can_execute=True, checks=[]),
+        portfolio_impact=PortfolioImpact(
+            asset="BTC", current_qty=0.0, current_value_usd=0.0, current_allocation_pct=0.0,
+            projected_qty=0.00116, projected_value_usd=100.0, projected_allocation_pct=1.0,
+            cash_before_usd=10000.0, cash_after_usd=9900.0,
+            total_portfolio_value_before=10000.0, total_portfolio_value_after=10000.0,
+        ),
+        explanation="Testing UAT failure",
+        created_at="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        status="PENDING_CONFIRMATION",
+    )
+    Storage.save_proposal(prop)
+
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        await OrderService.confirm_proposal(
+            proposal_id=prop.id,
+            confirm_req=TradeConfirmRequest(proposal_id=prop.id),
+            user_id=user_id,
+        )
+    assert exc_info.value.status_code == 500 or exc_info.value.status_code == 502
+    assert "Order marked FAILED" in exc_info.value.detail
+
+    # Verify proposal status is FAILED and cannot be released or confirmed again
+    p_check = Storage.get_proposal(prop.id, user_id=user_id)
+    assert p_check.status == "FAILED"
+
+    # Verify order was persisted and marked FAILED
+    orders = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    order_fail_event = next(e for e in orders if e["event_type"] == "ORDER_FAILED")
+    assert order_fail_event["metadata"]["external_id"] == "gw-order-fail-test"
