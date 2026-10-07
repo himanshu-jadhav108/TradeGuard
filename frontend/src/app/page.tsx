@@ -75,7 +75,7 @@ export default function LandingPage() {
               <Link
                 href="/app"
                 id="hero-try-tradeguard"
-                className="rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-card hover:bg-accent-dark transition-all flex items-center gap-2 group active:scale-[0.98]"
+                className="rounded-xl bg-accent px-6 py-3.5 text-sm font-bold text-slate-950 shadow-card hover:bg-accent-dark transition-all flex items-center gap-2 group active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <span>Try TradeGuard</span>
                 <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
@@ -578,7 +578,7 @@ export default function LandingPage() {
             <Link
               href="/app"
               id="cta-launch-tradeguard"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-sm font-semibold text-white shadow-card hover:bg-accent-dark transition-all active:scale-[0.98]"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent px-6 py-3.5 text-sm font-bold text-slate-950 shadow-card hover:bg-accent-dark transition-all active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-accent"
             >
               <span>Launch Trade Desk</span>
               <ArrowRight className="h-4 w-4" />

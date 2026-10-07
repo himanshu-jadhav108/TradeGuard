@@ -275,3 +275,41 @@ path.recharts-sector:focus {
     animation: none !important;
   }
 }
+
+/* Accessibility: Minimum 12px text enforcement across all components */
+.text-\[9px\],
+.text-\[10px\],
+.text-\[11px\] {
+  font-size: 12px !important;
+  line-height: 1.15rem !important;
+}
+
+/* Accessibility: High contrast text on accent and warn buttons */
+button.bg-accent,
+a.bg-accent {
+  color: #090b0f !important;
+  font-weight: 600 !important;
+}
+
+button.bg-warn,
+a.bg-warn {
+  color: #090b0f !important;
+  font-weight: 700 !important;
+}
+
+/* Accessibility: Distinct visible keyboard focus rings */
+:focus-visible {
+  outline: 2px solid var(--color-accent) !important;
+  outline-offset: 2px !important;
+}
+
+/* Accessible touch targets on coarse pointer/touch viewports */
+@media (pointer: coarse) {
+  button,
+  a[role="button"],
+  input[type="button"],
+  input[type="submit"] {
+    min-height: 44px;
+  }
+}
+

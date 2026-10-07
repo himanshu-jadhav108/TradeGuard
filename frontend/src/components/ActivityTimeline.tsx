@@ -149,7 +149,7 @@ export function ActivityTimeline({ refreshTrigger }: { refreshTrigger?: number }
           <button
             type="button"
             onClick={fetchActivity}
-            className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-white hover:bg-accent-dark transition-all inline-flex items-center gap-1.5"
+            className="rounded-xl bg-accent px-4 py-2 min-h-[44px] text-xs font-bold text-slate-950 hover:bg-accent-dark transition-all inline-flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-accent"
           >
             <RefreshCw className="h-3 w-3" />
             <span>Retry</span>

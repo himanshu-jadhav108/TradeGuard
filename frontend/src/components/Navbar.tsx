@@ -231,7 +231,7 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
           {!isApp ? (
             <Link
               href="/app"
-              className="rounded-lg bg-accent px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-accent-dark transition-all shadow-subtle flex items-center gap-1.5"
+              className="rounded-lg bg-accent px-3.5 py-1.5 min-h-[36px] text-xs font-bold text-slate-950 hover:bg-accent-dark transition-all shadow-subtle flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-accent"
             >
               <span>Launch App</span>
               <ArrowRight className="h-3 w-3" />
@@ -351,7 +351,7 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
               <Link
                 href="/app"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-accent py-2.5 text-xs font-semibold text-white"
+                className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg bg-accent py-2.5 text-xs font-bold text-slate-950 focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <span>Launch App</span>
                 <ArrowRight className="h-3.5 w-3.5" />

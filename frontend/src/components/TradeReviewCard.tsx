@@ -357,6 +357,8 @@ export function TradeReviewCard({
           {/* Freshness Countdown & Refresh Button */}
           <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 shrink-0">
             <div
+              aria-live="polite"
+              aria-atomic="true"
               className={`flex items-center gap-1.5 font-mono text-xs px-2.5 py-1 rounded-lg border ${
                 isExpired
                   ? "bg-danger-surface text-danger border-danger/30 animate-pulse"
@@ -683,8 +685,8 @@ export function TradeReviewCard({
         )}
 
         {errorMessage && (
-          <div className="rounded-xl border border-danger/30 bg-danger-surface p-3.5 text-xs text-danger">
-            {errorMessage}
+          <div role="alert" className="rounded-xl border border-danger/30 bg-danger-surface p-3.5 text-xs text-danger font-medium flex items-center gap-2">
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -694,7 +696,7 @@ export function TradeReviewCard({
             type="button"
             onClick={handleCancel}
             disabled={cancelling || confirming}
-            className="w-full sm:w-auto px-4 py-2.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-canvas-subtle rounded-xl transition-all"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 text-xs font-medium text-fg-muted hover:text-fg hover:bg-canvas-subtle rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-accent"
           >
             Cancel Review
           </button>
@@ -705,7 +707,7 @@ export function TradeReviewCard({
                 type="button"
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="w-full sm:w-auto rounded-xl bg-accent px-5 py-2.5 text-xs font-semibold text-white hover:bg-accent-dark transition-all flex items-center justify-center gap-2 shadow-subtle"
+                className="w-full sm:w-auto min-h-[44px] rounded-xl bg-accent px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-accent-dark transition-all flex items-center justify-center gap-2 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
                 <span>Refresh Expired Quote</span>
@@ -715,17 +717,17 @@ export function TradeReviewCard({
                 type="button"
                 onClick={handleConfirm}
                 disabled={!canExecute || confirming || (isWarn && !acknowledgedWarning) || isExpired}
-                className={`w-full sm:w-auto rounded-xl px-6 py-2.5 text-xs font-semibold text-white transition-all flex items-center justify-center gap-2 shadow-subtle ${
+                className={`w-full sm:w-auto min-h-[44px] rounded-xl px-6 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent ${
                   !canExecute || (isWarn && !acknowledgedWarning)
-                    ? "bg-fg-muted/40 cursor-not-allowed opacity-60"
+                    ? "bg-fg-muted/40 text-fg-muted cursor-not-allowed opacity-60"
                     : isWarn
-                    ? "bg-warn hover:bg-warn/90"
-                    : "bg-accent hover:bg-accent-dark"
+                    ? "bg-warn text-slate-950 hover:bg-warn/90"
+                    : "bg-accent text-slate-950 hover:bg-accent-dark"
                 }`}
               >
                 {confirming ? (
                   <>
-                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
                     <span>Confirming...</span>
                   </>
                 ) : (

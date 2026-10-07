@@ -133,10 +133,10 @@ export function TradeComposer({ onProposalCreated }: TradeComposerProps) {
             type="submit"
             disabled={loading || !prompt.trim()}
             suppressHydrationWarning
-            className="absolute right-2 top-2 bottom-2 rounded-lg bg-accent px-3.5 text-xs font-semibold text-white hover:bg-accent-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-subtle"
+            className="absolute right-2 top-2 bottom-2 min-h-[36px] rounded-lg bg-accent px-3.5 text-xs font-bold text-slate-950 hover:bg-accent-dark disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1.5 shadow-subtle focus-visible:ring-2 focus-visible:ring-accent"
           >
             {loading ? (
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
             ) : (
               <>
                 <span>Review</span>
@@ -157,12 +157,12 @@ export function TradeComposer({ onProposalCreated }: TradeComposerProps) {
         )}
 
         {error && (
-          <div className="rounded-xl border border-danger/30 bg-danger-surface p-3.5 text-xs text-danger space-y-2">
+          <div role="alert" className="rounded-xl border border-danger/30 bg-danger-surface p-3.5 text-xs text-danger space-y-2">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 text-danger mt-0.5" />
               <div className="flex-1 font-sans">
                 <span className="font-semibold block">Intent Validation Error</span>
-                <span className="text-[11px] leading-relaxed text-danger-text">{error}</span>
+                <span className="text-xs leading-relaxed text-danger-text">{error}</span>
               </div>
             </div>
 
@@ -209,10 +209,10 @@ export function TradeComposer({ onProposalCreated }: TradeComposerProps) {
                 handleSubmit(item.text);
               }}
               disabled={loading}
-              className="flex items-center justify-between rounded-lg border border-border bg-canvas-subtle p-2.5 text-left text-xs hover:border-accent/50 hover:bg-surface transition-all group"
+              className="flex min-h-[44px] items-center justify-between rounded-lg border border-border bg-canvas-subtle p-2.5 text-left text-xs hover:border-accent/50 hover:bg-surface transition-all group focus-visible:ring-2 focus-visible:ring-accent"
             >
               <div className="truncate pr-2">
-                <span className="text-[11px] font-semibold text-fg block truncate">
+                <span className="text-xs font-semibold text-fg block truncate">
                   {item.label}
                 </span>
                 <span className="font-mono text-[11px] text-fg-subtle block truncate group-hover:text-fg transition-colors">
