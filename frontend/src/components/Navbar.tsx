@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useTheme } from "@/lib/theme";
-import { Sun, Moon, RefreshCw, CheckCircle2, Menu, X, ArrowRight } from "lucide-react";
+import { Sun, Moon, RefreshCw, CheckCircle2, Menu, X, ArrowRight, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
 
 export function Navbar({ onReset }: { onReset?: () => void }) {
@@ -16,21 +16,48 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<"DEMO" | "UAT">("DEMO");
+  const [isWakingUp, setIsWakingUp] = useState(false);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [unreachable, setUnreachable] = useState(false);
+  const MAX_RETRIES = 5;
 
-  React.useEffect(() => {
-    setMounted(true);
-    api
-      .getHealth()
-      .then((h) => {
+  const checkHealthWithRetry = React.useCallback(async () => {
+    let attempts = 0;
+    setUnreachable(false);
+
+    const tryHealth = async (): Promise<boolean> => {
+      try {
+        const h = await api.getHealth();
         const isUat =
           h.mode === "uat" ||
           (h.true_markets_mode === "uat" && h.true_markets_configured);
         setMode(isUat ? "UAT" : "DEMO");
-      })
-      .catch(() => {
-        setMode("DEMO");
-      });
+        setIsWakingUp(false);
+        setUnreachable(false);
+        return true;
+      } catch {
+        attempts++;
+        setRetryAttempt(attempts);
+        if (attempts < MAX_RETRIES) {
+          setIsWakingUp(true);
+          const delay = Math.min(1500 * Math.pow(1.4, attempts), 5000);
+          await new Promise((r) => setTimeout(r, delay));
+          return tryHealth();
+        } else {
+          setIsWakingUp(false);
+          setUnreachable(true);
+          return false;
+        }
+      }
+    };
+
+    await tryHealth();
   }, []);
+
+  React.useEffect(() => {
+    setMounted(true);
+    checkHealthWithRetry();
+  }, [checkHealthWithRetry]);
 
   const isApp = pathname?.startsWith("/app");
 
@@ -110,6 +137,34 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-surface/95 backdrop-blur-md transition-colors shadow-sm">
+      {isWakingUp && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="w-full bg-accent-surface border-b border-accent/20 px-4 py-1.5 text-xs text-accent font-mono flex items-center justify-center gap-2 animate-fadeIn"
+        >
+          <RefreshCw className="h-3 w-3 animate-spin text-accent" />
+          <span>
+            Connecting to TradeGuard API (backend waking up, attempt {retryAttempt} of {MAX_RETRIES})...
+          </span>
+        </div>
+      )}
+      {unreachable && (
+        <div
+          role="alert"
+          className="w-full bg-danger-surface border-b border-danger/30 px-4 py-1.5 text-xs text-danger font-mono flex items-center justify-center gap-2"
+        >
+          <AlertCircle className="h-3 w-3 text-danger" />
+          <span>Backend service unreachable. Verify the backend is running.</span>
+          <button
+            type="button"
+            onClick={checkHealthWithRetry}
+            className="underline font-bold ml-1.5 hover:text-danger-text focus-visible:ring-1 focus-visible:ring-danger"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand Logo & Wordmark */}
         <Link href="/" className="flex items-center gap-2.5 group">
