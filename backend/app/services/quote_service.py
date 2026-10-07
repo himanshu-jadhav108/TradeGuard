@@ -6,11 +6,11 @@ from app.domain.models import QuoteSnapshot
 
 logger = logging.getLogger("TradeGuard.QuoteService")
 
-# Single source of truth for baseline demo prices
+# Single source of truth for baseline demo prices (calibrated to live True Markets market levels)
 DEMO_PRICES: Dict[str, float] = {
-    "BTC": 86450.00,
-    "ETH": 2680.50,
-    "SOL": 182.25,
+    "BTC": 83250.00,
+    "ETH": 2555.00,
+    "SOL": 116.20,
     "USDC": 1.00,
 }
 

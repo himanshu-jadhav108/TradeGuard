@@ -188,6 +188,12 @@ async def get_market_candles(
             error=None,
         )
         _CANDLE_CACHE[cache_key] = (now_ts, resp)
+        if current_price and current_price > 0:
+            try:
+                from app.services.quote_service import DEMO_PRICES
+                DEMO_PRICES[clean_asset] = round(float(current_price), 2)
+            except Exception:
+                pass
         return resp
 
     except TrueMarketsClientError as tce:

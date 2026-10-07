@@ -172,26 +172,6 @@ export function MarketContextChart({
       borderVisible: false,
       wickUpColor: upColor,
       wickDownColor: downColor,
-      autoscaleInfoProvider: (original: any) => {
-        const res = original();
-        const currentProposal = activeProposalRef.current;
-        const currentAsset = selectedAssetRef.current;
-        if (currentProposal && currentProposal.asset === currentAsset && currentProposal.quote) {
-          const rawPrice =
-            currentProposal.side === "BUY"
-              ? (currentProposal.quote.ask ?? currentProposal.quote.mid)
-              : (currentProposal.quote.bid ?? currentProposal.quote.mid);
-          if (typeof rawPrice === "number" && rawPrice > 0 && res?.priceRange) {
-            return {
-              priceRange: {
-                minValue: Math.min(res.priceRange.minValue, rawPrice * 0.997),
-                maxValue: Math.max(res.priceRange.maxValue, rawPrice * 1.003),
-              },
-            };
-          }
-        }
-        return res;
-      },
     });
 
     chartRef.current = chart;
