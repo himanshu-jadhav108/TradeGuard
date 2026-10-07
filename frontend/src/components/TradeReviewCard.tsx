@@ -108,25 +108,85 @@ export function TradeReviewCard({
 
   // If order was executed, render truthful settlement receipt
   if (executedOrder) {
+    const isFilled = executedOrder.status === "FILLED";
+    const isSubmitted = executedOrder.status === "SUBMITTED";
+    const isFailed = executedOrder.status === "FAILED" || executedOrder.status === "REJECTED";
+
+    let receiptTitle = isDemo ? "Simulated Order Filled" : "Order Executed on True Markets";
+    let receiptSubtitle = isDemo
+      ? "Simulated deterministic fill · Account balances updated"
+      : `Gateway order executed · External ID: ${executedOrder.external_order_id}`;
+    let lifecycleStatus = isDemo ? "Simulated Fill" : "Settled";
+    let activeSegments = 4;
+
+    if (isSubmitted) {
+      receiptTitle = isDemo ? "Simulated Order Submitted" : "Order Submitted to True Markets Gateway";
+      receiptSubtitle = isDemo
+        ? "Submitted to simulation queue · Awaiting settlement"
+        : `Dispatched to Gateway · Awaiting fill · External ID: ${executedOrder.external_order_id}`;
+      lifecycleStatus = "Submitted (Pending Fill)";
+      activeSegments = 3;
+    } else if (isFailed) {
+      receiptTitle = "Order Execution Failed";
+      receiptSubtitle = `Execution was not completed by gateway · External ID: ${executedOrder.external_order_id || "None"}`;
+      lifecycleStatus = "Execution Failed";
+      activeSegments = 2;
+    } else if (!isFilled) {
+      receiptTitle = `Order ${executedOrder.status}`;
+      receiptSubtitle = `Current status: ${executedOrder.status} · External ID: ${executedOrder.external_order_id || "None"}`;
+      lifecycleStatus = executedOrder.status;
+      activeSegments = 2;
+    }
+
+    // Price label: "Reference Price" unless FILLED with a gateway fill price (or simulated fill in demo)
+    let priceLabel = "Reference Price";
+    let displayPrice = executedOrder.fill_price
+      ? `$${executedOrder.fill_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+      : `$${proposal.quote.mid.toLocaleString(undefined, { minimumFractionDigits: 2 })} (Ref)`;
+
+    if (isFilled && !isDemo && executedOrder.fill_price) {
+      priceLabel = "Gateway Fill Price";
+      displayPrice = `$${executedOrder.fill_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    } else if (isFilled && isDemo && executedOrder.fill_price) {
+      priceLabel = "Simulated Fill Price";
+      displayPrice = `$${executedOrder.fill_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    }
+
     return (
-      <div className="w-full rounded-2xl border border-accent/40 bg-surface p-6 shadow-card transition-all">
+      <div className={`w-full rounded-2xl border ${isFailed ? "border-danger/40" : isSubmitted ? "border-warn/40" : "border-accent/40"} bg-surface p-6 shadow-card transition-all`}>
         <div className="flex items-center gap-3 pb-4 border-b border-border">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-surface text-accent border border-accent/30">
-            <CheckCircle className="h-5 w-5" />
+          <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+            isFailed
+              ? "bg-danger-surface text-danger border border-danger/30"
+              : isSubmitted
+              ? "bg-warn-surface text-warn border border-warn/30"
+              : "bg-accent-surface text-accent border border-accent/30"
+          }`}>
+            {isFailed ? (
+              <XCircle className="h-5 w-5" />
+            ) : isSubmitted ? (
+              <Clock className="h-5 w-5" />
+            ) : (
+              <CheckCircle className="h-5 w-5" />
+            )}
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-fg">
-                {isDemo ? "Simulated Order Filled" : "Order Executed on True Markets"}
+                {receiptTitle}
               </h3>
-              <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-bold bg-accent-surface text-accent">
+              <span className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+                isFailed
+                  ? "bg-danger-surface text-danger"
+                  : isSubmitted
+                  ? "bg-warn-surface text-warn-text border border-warn/30"
+                  : "bg-accent-surface text-accent"
+              }`}>
                 {executedOrder.status}
               </span>
             </div>
             <p className="text-xs text-fg-subtle">
-              {isDemo
-                ? "Simulated deterministic fill · Account balances updated"
-                : `Gateway order fulfilled · External ID: ${executedOrder.external_order_id}`}
+              {receiptSubtitle}
             </p>
           </div>
         </div>
@@ -137,19 +197,21 @@ export function TradeReviewCard({
             <span className="text-[11px] uppercase font-sans font-semibold text-fg">
               Execution Lifecycle
             </span>
-            <span className="text-[11px] text-accent">Settled</span>
+            <span className={`text-[11px] ${isFailed ? "text-danger" : isSubmitted ? "text-warn" : "text-accent"} font-semibold`}>
+              {lifecycleStatus}
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="flex-1 h-1.5 rounded-full bg-accent" />
-            <div className="flex-1 h-1.5 rounded-full bg-accent" />
-            <div className="flex-1 h-1.5 rounded-full bg-accent" />
-            <div className="flex-1 h-1.5 rounded-full bg-accent" />
+            <div className={`flex-1 h-1.5 rounded-full ${activeSegments >= 1 ? "bg-accent" : "bg-border"}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${activeSegments >= 2 ? "bg-accent" : "bg-border"}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${isFailed ? "bg-danger" : activeSegments >= 3 ? "bg-accent" : "bg-border"}`} />
+            <div className={`flex-1 h-1.5 rounded-full ${isFailed ? "bg-border" : activeSegments >= 4 ? "bg-accent" : "bg-border"}`} />
           </div>
           <div className="flex items-center justify-between text-[10px] font-mono text-fg-subtle mt-2">
-            <span>Review</span>
-            <span>Confirmed</span>
-            <span>Submitted</span>
-            <span>Filled</span>
+            <span className={activeSegments >= 1 ? "text-fg font-medium" : ""}>Review</span>
+            <span className={activeSegments >= 2 ? "text-fg font-medium" : ""}>Confirmed</span>
+            <span className={isSubmitted ? "text-warn font-semibold" : activeSegments >= 3 ? "text-fg font-medium" : ""}>Submitted</span>
+            <span className={isFilled ? "text-accent font-semibold" : ""}>Filled</span>
           </div>
         </div>
 
@@ -184,10 +246,10 @@ export function TradeReviewCard({
           </div>
           <div>
             <span className="text-fg-subtle block text-[10px] uppercase font-sans">
-              Execution Price
+              {priceLabel}
             </span>
             <span className="font-semibold text-fg tabular-nums">
-              ${executedOrder.fill_price ? executedOrder.fill_price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : "N/A"}
+              {displayPrice}
             </span>
           </div>
         </div>
