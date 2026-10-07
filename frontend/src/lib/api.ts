@@ -12,7 +12,11 @@ export function getSessionId(): string {
   if (typeof window === "undefined") return "demo-user-1";
   let sid = localStorage.getItem("tradeguard_session_id");
   if (!sid || sid.trim().length < 4) {
-    sid = "sess-" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 6);
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      sid = "sess-" + crypto.randomUUID();
+    } else {
+      sid = "sess-" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+    }
     localStorage.setItem("tradeguard_session_id", sid);
   }
   return sid;

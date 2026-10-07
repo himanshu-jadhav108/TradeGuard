@@ -862,3 +862,30 @@ def test_trade_proposal_validators_and_valueerror_mapping_to_422():
     )
     assert res_empty.status_code == 422
 
+
+def test_session_hardening_missing_and_invalid_rejected_400():
+    # 1. Missing X-Session-ID header rejected with 400
+    res_missing = client.get("/api/portfolio")
+    assert res_missing.status_code == 400
+    assert "Missing required X-Session-ID" in res_missing.json()["detail"]
+
+    # 2. Empty / whitespace X-Session-ID rejected with 400
+    res_whitespace = client.get("/api/portfolio", headers={"X-Session-ID": "   "})
+    assert res_whitespace.status_code == 400
+    assert "Missing required X-Session-ID" in res_whitespace.json()["detail"]
+
+    # 3. Too short X-Session-ID (< 4 chars) rejected with 400
+    res_short = client.get("/api/portfolio", headers={"X-Session-ID": "abc"})
+    assert res_short.status_code == 400
+    assert "Invalid X-Session-ID" in res_short.json()["detail"]
+
+    # 4. Invalid characters rejected with 400
+    res_invalid_chars = client.get("/api/portfolio", headers={"X-Session-ID": "session!@#$%^"})
+    assert res_invalid_chars.status_code == 400
+    assert "Invalid X-Session-ID" in res_invalid_chars.json()["detail"]
+
+    # 5. Valid session ID accepted with 200
+    res_valid = client.get("/api/portfolio", headers={"X-Session-ID": "valid-session-1234"})
+    assert res_valid.status_code == 200
+
+

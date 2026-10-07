@@ -30,14 +30,20 @@ api_router = APIRouter(prefix="/api")
 def get_session_id(x_session_id: Optional[str] = Header(None)) -> str:
     """
     Extracts and validates visitor session ID for per-session demo isolation.
-    Guarantees that each browser visitor operates on an isolated portfolio.
+    Rejects missing or invalid X-Session-ID with HTTP 400 Bad Request.
     """
-    if x_session_id:
-        clean = x_session_id.strip()
-        # Validate format: alphanumeric, hyphen, underscore, 4 to 64 chars
-        if re.match(r"^[a-zA-Z0-9_-]{4,64}$", clean):
-            return clean
-    return "demo-user-1"
+    if not x_session_id or not x_session_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required X-Session-ID header. A valid session ID is required for demo isolation.",
+        )
+    clean = x_session_id.strip()
+    if not re.match(r"^[a-zA-Z0-9_-]{4,64}$", clean):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid X-Session-ID header. Must be 4-64 characters matching [a-zA-Z0-9_-].",
+        )
+    return clean
 
 
 @api_router.get("/health")
