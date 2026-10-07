@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
+import { SafetySignalsPanel } from "@/components/SafetySignalsPanel";
 import { useRefresh } from "@/lib/refresh-context";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
@@ -39,6 +40,10 @@ export default function ActivityPage() {
         </div>
       </div>
 
+      {/* Rule-based Safety Signals Panel */}
+      <SafetySignalsPanel refreshTrigger={refreshKey} />
+
+      {/* Chronological Audit Timeline */}
       <ActivityTimeline refreshTrigger={refreshKey} />
     </div>
   );

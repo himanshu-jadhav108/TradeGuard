@@ -1,4 +1,6 @@
 import re
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from app.core.config import settings
@@ -9,6 +11,7 @@ from app.domain.models import (
     IntentParseResponse,
     OrderRecord,
     PortfolioSummary,
+    SafetySignalsReport,
     SessionResetResponse,
     TradeConfirmRequest,
     TradeProposal,
@@ -18,6 +21,7 @@ from app.services.intent_service import IntentService
 from app.services.order_service import OrderService
 from app.services.portfolio_service import PortfolioService
 from app.services.proposal_service import ProposalService
+from app.services.safety_signal_service import SafetySignalService
 from app.services.true_markets_client import TrueMarketsClient
 
 api_router = APIRouter(prefix="/api")
@@ -56,8 +60,42 @@ def health_check():
 
 
 @api_router.post("/intent/parse", response_model=IntentParseResponse)
-def parse_intent(request: IntentParseRequest):
+def parse_intent(
+    request: IntentParseRequest,
+    session_id: str = Depends(get_session_id),
+):
     result = IntentService.parse_with_clarification(request.prompt)
+    now = datetime.now(timezone.utc).isoformat()
+    if result.success and result.intent:
+        Storage.save_audit_event(AuditEvent(
+            id=f"evt-{uuid.uuid4().hex[:12]}",
+            user_id=session_id,
+            event_type="INTENT_PARSED",
+            summary=f"Parsed intent: {result.intent.side.value} {result.intent.amount} {result.intent.asset} ({result.intent.amount_type.value}).",
+            metadata={
+                "prompt": request.prompt,
+                "asset": result.intent.asset,
+                "side": result.intent.side.value,
+                "amount": result.intent.amount,
+                "amount_type": result.intent.amount_type.value,
+            },
+            timestamp=now,
+            is_recorded=True,
+        ))
+    else:
+        Storage.save_audit_event(AuditEvent(
+            id=f"evt-{uuid.uuid4().hex[:12]}",
+            user_id=session_id,
+            event_type="INTENT_REJECTED",
+            summary=f"Intent rejected or requires clarification: {result.error or result.clarification or 'Unrecognized intent'}.",
+            metadata={
+                "prompt": request.prompt,
+                "error": result.error,
+                "clarification": result.clarification,
+            },
+            timestamp=now,
+            is_recorded=True,
+        ))
     return IntentParseResponse(
         success=result.success,
         intent=result.intent,
@@ -65,6 +103,7 @@ def parse_intent(request: IntentParseRequest):
         suggestions=result.suggestions,
         error=result.error,
     )
+
 
 
 @api_router.post("/trades/proposals", response_model=TradeProposal)
@@ -142,6 +181,16 @@ def get_activity(
     session_id: str = Depends(get_session_id),
 ):
     return Storage.get_audit_events(user_id=session_id, limit=limit)
+
+
+@api_router.get("/safety-signals", response_model=SafetySignalsReport)
+def get_safety_signals(session_id: str = Depends(get_session_id)):
+    """
+    Computes rule-based safety signals strictly and deterministically from stored session audit events.
+    """
+    events = Storage.get_audit_events(user_id=session_id, limit=200)
+    return SafetySignalService.compute_signals(session_id=session_id, events=events)
+
 
 
 @api_router.post("/session/reset", response_model=SessionResetResponse)

@@ -120,7 +120,27 @@ export interface AuditEvent {
   summary: string;
   metadata: Record<string, any>;
   timestamp: string;
+  seq?: number;
+  is_recorded?: boolean;
 }
+
+export interface SafetySignal {
+  id: string;
+  name: string;
+  description: string;
+  count: number;
+  severity: "INFO" | "WARN" | "CRITICAL";
+  details?: Record<string, any>;
+}
+
+export interface SafetySignalsReport {
+  session_id: string;
+  signals: SafetySignal[];
+  total_stored_events: number;
+  computed_at: string;
+  label: string;
+}
+
 
 export interface Position {
   asset: string;

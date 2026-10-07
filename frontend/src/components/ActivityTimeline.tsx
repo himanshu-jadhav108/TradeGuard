@@ -38,6 +38,16 @@ export function ActivityTimeline({ refreshTrigger }: { refreshTrigger?: number }
     fetchActivity();
   }, [refreshTrigger]);
 
+  const formatFullDateTime = (isoString?: string) => {
+    if (!isoString) return "—";
+    try {
+      const d = new Date(isoString);
+      return d.toISOString().replace("T", " ").substring(0, 19) + " UTC";
+    } catch {
+      return isoString;
+    }
+  };
+
   const getEventBadge = (type: string) => {
     switch (type) {
       case "ORDER_FILLED":
@@ -46,10 +56,42 @@ export function ActivityTimeline({ refreshTrigger }: { refreshTrigger?: number }
           icon: <CheckCircle2 className="h-3.5 w-3.5 text-accent" />,
           style: "bg-accent-surface text-accent border-accent/20",
         };
+      case "WARNING_ACKNOWLEDGED":
+        return {
+          icon: <CheckCircle2 className="h-3.5 w-3.5 text-accent" />,
+          style: "bg-accent-surface text-accent border-accent/20",
+        };
+      case "RISK_EVALUATED":
       case "PROPOSAL_CREATED":
         return {
-          icon: <FileText className="h-3.5 w-3.5 text-warn" />,
+          icon: <ShieldCheck className="h-3.5 w-3.5 text-warn" />,
           style: "bg-warn-surface text-warn border-warn/20",
+        };
+      case "INTENT_PARSED":
+        return {
+          icon: <FileText className="h-3.5 w-3.5 text-accent" />,
+          style: "bg-accent-surface text-accent border-accent/20",
+        };
+      case "INTENT_REJECTED":
+        return {
+          icon: <AlertCircle className="h-3.5 w-3.5 text-warn" />,
+          style: "bg-warn-surface text-warn border-warn/20",
+        };
+      case "CONFIRM_REJECTED":
+      case "ORDER_FAILED":
+        return {
+          icon: <AlertCircle className="h-3.5 w-3.5 text-danger" />,
+          style: "bg-danger-surface text-danger border-danger/20",
+        };
+      case "PROPOSAL_EXPIRED":
+        return {
+          icon: <Clock className="h-3.5 w-3.5 text-warn" />,
+          style: "bg-warn-surface text-warn border-warn/20",
+        };
+      case "TRADE_CANCELLED":
+        return {
+          icon: <Clock className="h-3.5 w-3.5 text-fg-subtle" />,
+          style: "bg-canvas-subtle text-fg-subtle border-border",
         };
       case "ACCOUNT_SEEDED":
       case "ACCOUNT_RESET":
@@ -133,12 +175,22 @@ export function ActivityTimeline({ refreshTrigger }: { refreshTrigger?: number }
 
                 <div className="rounded-xl border border-border bg-canvas-subtle p-3.5 transition-all hover:border-accent/40">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={`rounded px-1.5 py-0.5 font-mono text-[10px] font-bold border flex items-center gap-1 ${badge.style}`}
                       >
                         {badge.icon}
                         <span>{evt.event_type}</span>
+                      </span>
+
+                      {evt.seq !== undefined && evt.seq !== null && (
+                        <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] text-fg-subtle border border-border">
+                          #{evt.seq}
+                        </span>
+                      )}
+
+                      <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-wider text-fg-muted border border-border">
+                        {evt.is_recorded !== false ? "RECORDED" : "DERIVED"}
                       </span>
 
                       {evt.proposal_id && (
@@ -148,8 +200,13 @@ export function ActivityTimeline({ refreshTrigger }: { refreshTrigger?: number }
                       )}
                     </div>
 
-                    <time className="font-mono text-[11px] text-fg-subtle">
-                      {new Date(evt.timestamp).toLocaleTimeString()}
+                    <time
+                      dateTime={evt.timestamp}
+                      className="font-mono text-[11px] text-fg-subtle flex items-center gap-1"
+                      title={new Date(evt.timestamp).toLocaleString()}
+                    >
+                      <Clock className="h-3 w-3 text-fg-muted" />
+                      <span>{formatFullDateTime(evt.timestamp)}</span>
                     </time>
                   </div>
 

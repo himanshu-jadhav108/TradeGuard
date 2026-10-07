@@ -158,6 +158,26 @@ class AuditEvent(BaseModel):
     summary: str
     metadata: Dict[str, Any] = Field(default_factory=dict)
     timestamp: str
+    seq: Optional[int] = None
+    is_recorded: bool = True
+
+
+class SafetySignal(BaseModel):
+    id: str
+    name: str
+    description: str
+    count: int
+    severity: str  # "INFO", "WARN", "CRITICAL"
+    details: Dict[str, Any] = Field(default_factory=dict)
+
+
+class SafetySignalsReport(BaseModel):
+    session_id: str
+    signals: List[SafetySignal]
+    total_stored_events: int
+    computed_at: str
+    label: str = "rule-based safety signals"
+
 
 
 class Position(BaseModel):

@@ -1,11 +1,14 @@
 import pytest
+import uuid
 from fastapi.testclient import TestClient
 from app.main import app
 from app.services.intent_service import IntentService
-from app.domain.models import OrderSide, AmountType, RiskLevel, TradeConfirmRequest
+from app.domain.models import OrderSide, AmountType, RiskLevel, TradeConfirmRequest, TradeProposalCreateRequest
 from app.services.quote_service import QuoteService
 from app.services.risk_engine import RiskEngine
-from app.db.store import Storage
+from app.services.proposal_service import ProposalService
+from app.services.order_service import OrderService
+from app.db.store import Storage, get_db
 
 client = TestClient(app)
 
@@ -677,3 +680,117 @@ async def test_uat_execute_failure_marks_order_failed_and_locks_proposal(monkeyp
     orders = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
     order_fail_event = next(e for e in orders if e["event_type"] == "ORDER_FAILED")
     assert order_fail_event["metadata"]["external_id"] == "gw-order-fail-test"
+
+
+# ---------------------------------------------------------------------------
+# P1-1 Audit Completeness and Safety Signals Tests
+# ---------------------------------------------------------------------------
+
+
+def test_audit_intent_parsed_and_rejected():
+    user_id = f"test-audit-intent-{uuid.uuid4().hex[:6]}"
+
+    # 1. Valid intent
+    res_valid = client.post("/api/intent/parse", json={"prompt": "Buy $200 of BTC"}, headers={"X-Session-ID": user_id})
+    assert res_valid.status_code == 200
+    assert res_valid.json()["success"] is True
+
+    # 2. Rejected intent (negation)
+    res_neg = client.post("/api/intent/parse", json={"prompt": "Don't buy ETH"}, headers={"X-Session-ID": user_id})
+    assert res_neg.status_code == 200
+    assert res_neg.json()["success"] is False
+
+    # Check activity
+    events = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    event_types = [e["event_type"] for e in events]
+    assert "INTENT_PARSED" in event_types
+    assert "INTENT_REJECTED" in event_types
+
+    # Verify monotonic seq and is_recorded
+    seqs = [e["seq"] for e in events if e.get("seq") is not None]
+    assert len(seqs) >= 2
+    # Since events are returned ORDER BY seq DESC:
+    assert seqs[0] > seqs[1]
+    assert all(e.get("is_recorded") is True for e in events)
+
+
+@pytest.mark.asyncio
+async def test_audit_risk_evaluated_warning_ack_and_rejections():
+    user_id = f"test-audit-lifecycle-{uuid.uuid4().hex[:6]}"
+
+    # 1. Staged proposal produces RISK_EVALUATED
+    prop = await ProposalService.create_proposal(
+        TradeProposalCreateRequest(asset="SOL", side=OrderSide.BUY, amount=100.0, amount_type=AmountType.USD),
+        user_id=user_id,
+    )
+    events = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    risk_event = next(e for e in events if e["event_type"] == "RISK_EVALUATED")
+    assert risk_event["proposal_id"] == prop.id
+    assert "checks" in risk_event["metadata"]
+    assert "thresholds" in risk_event["metadata"]
+
+    # 2. Test cancel produces TRADE_CANCELLED
+    client.post(f"/api/trades/{prop.id}/cancel", headers={"X-Session-ID": user_id})
+    events = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    assert any(e["event_type"] == "TRADE_CANCELLED" and e["proposal_id"] == prop.id for e in events)
+
+    # 3. Test blocked proposal confirmation produces CONFIRM_REJECTED
+    prop_blocked = await ProposalService.create_proposal(
+        TradeProposalCreateRequest(asset="BTC", side=OrderSide.BUY, amount=30000.0, amount_type=AmountType.USD),
+        user_id=user_id,
+    )
+    with pytest.raises(Exception):
+        await OrderService.confirm_proposal(prop_blocked.id, TradeConfirmRequest(proposal_id=prop_blocked.id), user_id=user_id)
+
+    events = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    reject_event = next(e for e in events if e["event_type"] == "CONFIRM_REJECTED" and e["proposal_id"] == prop_blocked.id)
+    assert reject_event["metadata"]["reason"] == "RISK_BLOCKED"
+
+    # 4. Test expired quote confirmation produces PROPOSAL_EXPIRED
+    prop_stale = await ProposalService.create_proposal(
+        TradeProposalCreateRequest(asset="ETH", side=OrderSide.BUY, amount=100.0, amount_type=AmountType.USD),
+        user_id=user_id,
+    )
+    # Force quote timestamp to past
+    with get_db() as conn:
+        conn.execute("UPDATE trade_proposals SET quote_snapshot = json_set(quote_snapshot, '$.timestamp', '2020-01-01T00:00:00Z', '$.expires_at', '2020-01-01T00:00:30Z') WHERE id = ?", (prop_stale.id,))
+
+    with pytest.raises(Exception):
+        await OrderService.confirm_proposal(prop_stale.id, TradeConfirmRequest(proposal_id=prop_stale.id), user_id=user_id)
+
+    events = client.get("/api/activity", headers={"X-Session-ID": user_id}).json()
+    assert any(e["event_type"] == "PROPOSAL_EXPIRED" and e["proposal_id"] == prop_stale.id for e in events)
+
+
+@pytest.mark.asyncio
+async def test_safety_signals_computation_and_endpoint():
+    user_id = f"test-safety-signals-{uuid.uuid4().hex[:6]}"
+
+    # Create two duplicate proposals in short window
+    prop1 = await ProposalService.create_proposal(
+        TradeProposalCreateRequest(asset="ETH", side=OrderSide.BUY, amount=50.0, amount_type=AmountType.USD),
+        user_id=user_id,
+    )
+    prop2 = await ProposalService.create_proposal(
+        TradeProposalCreateRequest(asset="ETH", side=OrderSide.BUY, amount=50.0, amount_type=AmountType.USD),
+        user_id=user_id,
+    )
+
+    # Call /api/safety-signals
+    res = client.get("/api/safety-signals", headers={"X-Session-ID": user_id})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["label"] == "rule-based safety signals"
+    assert data["session_id"] == user_id
+
+    signals_by_id = {s["id"]: s for s in data["signals"]}
+    assert "sig-duplicates" in signals_by_id
+    assert "sig-rate" in signals_by_id
+    assert "sig-rejected-confirms" in signals_by_id
+    assert "sig-expired-quotes" in signals_by_id
+
+    # The 2nd proposal should be detected as a duplicate of the 1st
+    assert signals_by_id["sig-duplicates"]["count"] >= 1
+    # Both proposals staged in the last 60s
+    assert signals_by_id["sig-rate"]["count"] >= 2
+

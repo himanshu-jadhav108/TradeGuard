@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone
+from app.core.config import settings
 from app.db.store import Storage
 from app.domain.models import (
     AmountType,
@@ -87,26 +88,32 @@ class ProposalService:
             fee_label="Not modelled in demo",
         )
 
-        # 6. Save to storage
-        Storage.save_proposal(proposal)
-
-        # 7. Record audit event
+        # 6. Save to storage and record RISK_EVALUATED audit event in the same transaction
         audit_event = AuditEvent(
             id=f"evt-{uuid.uuid4().hex[:12]}",
             user_id=user_id,
-            event_type="PROPOSAL_CREATED",
+            event_type="RISK_EVALUATED",
             proposal_id=proposal_id,
-            summary=f"Created {side.value} proposal for {est_qty:,.6f} {asset} (${est_notional:,.2f} USD). Risk status: {risk_result.overall_status.value}.",
+            summary=f"Risk evaluated ({risk_result.overall_status.value}): {side.value} {est_qty:,.6f} {asset} (${est_notional:,.2f} USD). Checks: {len(risk_result.checks)} evaluated.",
             metadata={
                 "asset": asset,
                 "side": side.value,
                 "amount": amount,
                 "amount_type": amount_type.value,
+                "estimated_qty": est_qty,
+                "estimated_notional_usd": est_notional,
                 "raw_prompt": raw_prompt,
                 "risk_status": risk_result.overall_status.value,
+                "checks": [c.model_dump() for c in risk_result.checks],
+                "thresholds": {
+                    "max_notional_usd": settings.MAX_NOTIONAL_USD,
+                    "concentration_threshold_pct": settings.CONCENTRATION_THRESHOLD_PCT,
+                },
             },
             timestamp=now,
+            is_recorded=True,
         )
-        Storage.save_audit_event(audit_event)
+        Storage.save_proposal(proposal, audit_event=audit_event)
 
         return proposal
+

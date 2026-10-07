@@ -28,14 +28,27 @@ class OrderService:
 
         # 2. Strict Risk Gate Verification
         if proposal.risk.overall_status == RiskLevel.BLOCK:
+            reason_msg = proposal.risk.block_reason or "Blocked trades cannot be executed."
+            Storage.record_confirm_rejected(
+                proposal_id=proposal_id,
+                user_id=user_id,
+                reason="RISK_BLOCKED",
+                detail=reason_msg,
+            )
             raise HTTPException(
                 status_code=400,
-                detail=f"Execution blocked by deterministic risk engine: {proposal.risk.block_reason or 'Blocked trades cannot be executed.'}",
+                detail=f"Execution blocked by deterministic risk engine: {reason_msg}",
             )
 
         # 3. WARN Acknowledgement Verification
         if proposal.risk.overall_status == RiskLevel.WARN and proposal.risk.warn_requires_ack:
             if not confirm_req.acknowledged_warnings:
+                Storage.record_confirm_rejected(
+                    proposal_id=proposal_id,
+                    user_id=user_id,
+                    reason="UNACKNOWLEDGED_WARNING",
+                    detail="Confirmation requires explicit acknowledgement of the portfolio concentration warning.",
+                )
                 raise HTTPException(
                     status_code=400,
                     detail="Confirmation requires explicit acknowledgement of the portfolio concentration warning.",
@@ -43,7 +56,7 @@ class OrderService:
 
         # 4. Verify Quote Freshness (30s TTL)
         if not QuoteService.is_quote_fresh(proposal.quote):
-            Storage.update_proposal_status(proposal_id, "EXPIRED", user_id=user_id)
+            Storage.expire_proposal(proposal_id=proposal_id, user_id=user_id, reason="EXPIRED_QUOTE")
             raise HTTPException(
                 status_code=409,
                 detail="Market quote expired before confirmation was received. Please refresh the quote.",
@@ -55,6 +68,13 @@ class OrderService:
             # Re-fetch proposal to provide exact status
             p_check = Storage.get_proposal(proposal_id, user_id=user_id)
             status_desc = p_check.status if p_check else "PROCESSED"
+            reason = "EXPIRED_QUOTE" if status_desc == "EXPIRED" else "CONCURRENT_CONFLICT_OR_ALREADY_PROCESSED"
+            Storage.record_confirm_rejected(
+                proposal_id=proposal_id,
+                user_id=user_id,
+                reason=reason,
+                detail=f"Proposal status: {status_desc}",
+            )
             raise HTTPException(
                 status_code=409,
                 detail=f"Proposal has already been processed or is currently executing (status: {status_desc}). Double confirmation is prevented.",
@@ -67,6 +87,7 @@ class OrderService:
         if not is_real_uat:
             # DETERMINISTIC DEMO SIMULATION (Atomic single transaction BEGIN IMMEDIATE)
             fill_price = proposal.quote.ask if proposal.side == OrderSide.BUY else proposal.quote.bid
+            has_warning = proposal.risk.overall_status == RiskLevel.WARN and confirm_req.acknowledged_warnings
             return Storage.execute_demo_fill_atomic(
                 proposal_id=proposal_id,
                 user_id=user_id,
@@ -76,6 +97,7 @@ class OrderService:
                 estimated_notional_usd=proposal.estimated_notional_usd,
                 fill_price=fill_price,
                 raw_prompt=proposal.raw_prompt,
+                acknowledged_warnings=has_warning,
             )
 
         else:
@@ -89,12 +111,24 @@ class OrderService:
 
             if proposal.side == OrderSide.BUY and d_notional > d_cash:
                 Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
+                Storage.record_confirm_rejected(
+                    proposal_id=proposal_id,
+                    user_id=user_id,
+                    reason="INSUFFICIENT_FUNDS",
+                    detail=f"Insufficient cash balance: needed ${float(d_notional):,.2f}, available ${float(d_cash):,.2f}",
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=f"Insufficient cash balance at confirmation. Needed: ${float(d_notional):,.2f}, Available: ${float(d_cash):,.2f}",
                 )
             elif proposal.side == OrderSide.SELL and d_qty > positions.get(proposal.asset, Decimal("0")):
                 Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
+                Storage.record_confirm_rejected(
+                    proposal_id=proposal_id,
+                    user_id=user_id,
+                    reason="INSUFFICIENT_ASSET",
+                    detail=f"Insufficient {proposal.asset} balance: needed {float(d_qty):,.6f}, owned {float(positions.get(proposal.asset, Decimal('0'))):,.6f}",
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=f"Insufficient {proposal.asset} balance at confirmation. Needed: {float(d_qty):,.6f}, Owned: {float(positions.get(proposal.asset, Decimal('0'))):,.6f}",
@@ -102,6 +136,20 @@ class OrderService:
 
             now = datetime.now(timezone.utc).isoformat()
             order_id = f"ord-{uuid.uuid4().hex[:12]}"
+
+            # Record WARNING_ACKNOWLEDGED if applicable
+            if proposal.risk.overall_status == RiskLevel.WARN and confirm_req.acknowledged_warnings:
+                Storage.save_audit_event(AuditEvent(
+                    id=f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id=user_id,
+                    event_type="WARNING_ACKNOWLEDGED",
+                    proposal_id=proposal_id,
+                    order_id=None,
+                    summary="User explicitly acknowledged pre-trade risk warning before gateway submission.",
+                    metadata={"risk_level": "WARN", "mode": "UAT"},
+                    timestamp=now,
+                    is_recorded=True,
+                ))
 
             # Dispatch to gateway
             try:
@@ -115,6 +163,12 @@ class OrderService:
             except TrueMarketsClientError as e:
                 # Creation failed before gateway order existed: safe to release claim
                 Storage.update_proposal_status(proposal_id, "PENDING_CONFIRMATION", user_id=user_id)
+                Storage.record_confirm_rejected(
+                    proposal_id=proposal_id,
+                    user_id=user_id,
+                    reason="GATEWAY_CREATE_FAILED",
+                    detail=str(e),
+                )
                 raise HTTPException(status_code=e.status_code or 502, detail=str(e))
 
             ext_id = gw_order.get("id") or gw_order.get("order_id")

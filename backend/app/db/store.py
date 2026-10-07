@@ -102,6 +102,8 @@ def init_db():
                 summary TEXT NOT NULL,
                 metadata_json TEXT NOT NULL,
                 created_at TEXT NOT NULL,
+                seq INTEGER,
+                is_recorded INTEGER DEFAULT 1,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
         """)
@@ -112,6 +114,15 @@ def init_db():
         cols = [r["name"] for r in cur.fetchall()]
         if "raw_prompt" not in cols:
             conn.execute("ALTER TABLE trade_proposals ADD COLUMN raw_prompt TEXT")
+
+        # Migration: ensure seq and is_recorded columns exist on audit_events
+        cur.execute("PRAGMA table_info(audit_events)")
+        a_cols = [r["name"] for r in cur.fetchall()]
+        if "seq" not in a_cols:
+            conn.execute("ALTER TABLE audit_events ADD COLUMN seq INTEGER")
+        if "is_recorded" not in a_cols:
+            conn.execute("ALTER TABLE audit_events ADD COLUMN is_recorded INTEGER DEFAULT 1")
+        conn.execute("UPDATE audit_events SET seq = rowid WHERE seq IS NULL")
 
     # Seed baseline default demo account
     seed_session_account(conn, "demo-user-1", "Default Demo Trader")
@@ -137,8 +148,9 @@ def seed_session_account(conn: sqlite3.Connection, session_id: str, name: str = 
             conn.execute("INSERT INTO positions (user_id, asset, quantity, updated_at) VALUES (?, 'SOL', 10.0, ?)", (session_id, now))
 
             conn.execute("""
-                INSERT OR IGNORE INTO audit_events (id, user_id, event_type, summary, metadata_json, created_at)
-                VALUES (?, ?, 'ACCOUNT_SEEDED', 'Demo portfolio initialized with $10,000.00 cash and standard holdings.', ?, ?)
+                INSERT OR IGNORE INTO audit_events (
+                    id, user_id, event_type, summary, metadata_json, created_at, seq, is_recorded
+                ) VALUES (?, ?, 'ACCOUNT_SEEDED', 'Demo portfolio initialized with $10,000.00 cash and standard holdings.', ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
             """, (f"evt-init-{session_id[:8]}", session_id, json.dumps({"cash": 10000.0, "btc": 0.15, "eth": 1.5, "sol": 10.0}), now))
 
 
@@ -179,7 +191,7 @@ class Storage:
         conn.close()
 
     @staticmethod
-    def save_proposal(proposal: TradeProposal):
+    def save_proposal(proposal: TradeProposal, audit_event: Optional[AuditEvent] = None):
         Storage.ensure_session(proposal.user_id)
         conn = get_db()
         with conn:
@@ -207,6 +219,27 @@ class Storage:
                 proposal.created_at,
                 proposal.expires_at,
             ))
+            if audit_event:
+                conn.execute("""
+                    INSERT INTO audit_events (
+                        id, user_id, event_type, proposal_id, order_id, summary,
+                        metadata_json, created_at, seq, is_recorded
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?,
+                        (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events),
+                        ?
+                    )
+                """, (
+                    audit_event.id,
+                    audit_event.user_id,
+                    audit_event.event_type,
+                    audit_event.proposal_id,
+                    audit_event.order_id,
+                    audit_event.summary,
+                    json.dumps(audit_event.metadata),
+                    audit_event.timestamp,
+                    1 if audit_event.is_recorded else 0,
+                ))
         conn.close()
 
     @staticmethod
@@ -289,8 +322,8 @@ class Storage:
             if cancelled:
                 cur.execute("""
                     INSERT INTO audit_events (
-                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
-                    ) VALUES (?, ?, 'TRADE_CANCELLED', ?, NULL, ?, ?, ?)
+                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                    ) VALUES (?, ?, 'TRADE_CANCELLED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
                 """, (
                     f"evt-{uuid.uuid4().hex[:12]}",
                     user_id,
@@ -312,6 +345,7 @@ class Storage:
         estimated_notional_usd: float,
         fill_price: float,
         raw_prompt: Optional[str] = None,
+        acknowledged_warnings: bool = False,
     ) -> OrderRecord:
         """
         Executes a demo order fill atomically in a single BEGIN IMMEDIATE transaction:
@@ -320,8 +354,8 @@ class Storage:
         3. Updates cash and asset positions with Decimal-grade precision.
         4. Transitions proposal status to CONFIRMED.
         5. Persists OrderRecord with FILLED status.
-        6. Appends TRADE_CONFIRMED and ORDER_FILLED audit events.
-        Rolls back entirely on any error.
+        6. Appends WARNING_ACKNOWLEDGED (if applicable) and ORDER_FILLED audit events.
+        Rolls back entirely on any unhandled error.
         """
         Storage.ensure_session(user_id)
         conn = get_db()
@@ -360,6 +394,18 @@ class Storage:
 
             if side == OrderSide.BUY and d_notional > d_cash:
                 cur.execute("UPDATE trade_proposals SET status = 'PENDING_CONFIRMATION' WHERE id = ?", (proposal_id,))
+                cur.execute("""
+                    INSERT INTO audit_events (
+                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                    ) VALUES (?, ?, 'CONFIRM_REJECTED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
+                """, (
+                    f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id,
+                    proposal_id,
+                    f"Confirmation rejected: Insufficient cash balance. Needed: ${float(d_notional):,.2f}, Available: ${float(d_cash):,.2f}",
+                    json.dumps({"reason": "INSUFFICIENT_FUNDS", "needed": float(d_notional), "available": float(d_cash)}),
+                    now,
+                ))
                 cur.execute("COMMIT")
                 raise HTTPException(
                     status_code=400,
@@ -367,6 +413,18 @@ class Storage:
                 )
             elif side == OrderSide.SELL and d_qty > positions.get(asset, Decimal("0")):
                 cur.execute("UPDATE trade_proposals SET status = 'PENDING_CONFIRMATION' WHERE id = ?", (proposal_id,))
+                cur.execute("""
+                    INSERT INTO audit_events (
+                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                    ) VALUES (?, ?, 'CONFIRM_REJECTED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
+                """, (
+                    f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id,
+                    proposal_id,
+                    f"Confirmation rejected: Insufficient {asset} balance. Needed: {float(d_qty):,.6f}, Owned: {float(positions.get(asset, Decimal('0'))):,.6f}",
+                    json.dumps({"reason": "INSUFFICIENT_ASSET", "needed": float(d_qty), "available": float(positions.get(asset, Decimal("0")))}),
+                    now,
+                ))
                 cur.execute("COMMIT")
                 raise HTTPException(
                     status_code=400,
@@ -443,24 +501,24 @@ class Storage:
             ))
 
             # 6. Audit events (inside same transaction)
-            cur.execute("""
-                INSERT INTO audit_events (
-                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
-                ) VALUES (?, ?, 'TRADE_CONFIRMED', ?, ?, ?, ?, ?)
-            """, (
-                f"evt-{uuid.uuid4().hex[:12]}",
-                user_id,
-                proposal_id,
-                order_id,
-                f"User explicitly confirmed {side.value} {estimated_qty:,.6f} {asset} (Simulated Demo).",
-                json.dumps({"mode": "DEMO", "notional_usd": estimated_notional_usd}),
-                now,
-            ))
+            if acknowledged_warnings:
+                cur.execute("""
+                    INSERT INTO audit_events (
+                        id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                    ) VALUES (?, ?, 'WARNING_ACKNOWLEDGED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
+                """, (
+                    f"evt-{uuid.uuid4().hex[:12]}",
+                    user_id,
+                    proposal_id,
+                    "User explicitly acknowledged pre-trade risk warning before execution.",
+                    json.dumps({"risk_level": "WARN", "mode": "DEMO"}),
+                    now,
+                ))
 
             cur.execute("""
                 INSERT INTO audit_events (
-                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at
-                ) VALUES (?, ?, 'ORDER_FILLED', ?, ?, ?, ?, ?)
+                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                ) VALUES (?, ?, 'ORDER_FILLED', ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
             """, (
                 f"evt-{uuid.uuid4().hex[:12]}",
                 user_id,
@@ -559,8 +617,12 @@ class Storage:
             conn.execute("""
                 INSERT INTO audit_events (
                     id, user_id, event_type, proposal_id, order_id, summary,
-                    metadata_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    metadata_json, created_at, seq, is_recorded
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events),
+                    ?
+                )
             """, (
                 event.id,
                 event.user_id,
@@ -570,6 +632,50 @@ class Storage:
                 event.summary,
                 json.dumps(event.metadata),
                 event.timestamp,
+                1 if event.is_recorded else 0,
+            ))
+        conn.close()
+
+    @staticmethod
+    def record_confirm_rejected(proposal_id: str, user_id: str, reason: str, detail: str):
+        Storage.ensure_session(user_id)
+        conn = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        import uuid
+        with conn:
+            conn.execute("""
+                INSERT INTO audit_events (
+                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                ) VALUES (?, ?, 'CONFIRM_REJECTED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
+            """, (
+                f"evt-{uuid.uuid4().hex[:12]}",
+                user_id,
+                proposal_id,
+                f"Confirmation rejected: {detail}",
+                json.dumps({"reason": reason, "detail": detail}),
+                now,
+            ))
+        conn.close()
+
+    @staticmethod
+    def expire_proposal(proposal_id: str, user_id: str, reason: str = "EXPIRED_QUOTE"):
+        Storage.ensure_session(user_id)
+        conn = get_db()
+        now = datetime.now(timezone.utc).isoformat()
+        import uuid
+        with conn:
+            conn.execute("UPDATE trade_proposals SET status = 'EXPIRED' WHERE id = ? AND user_id = ?", (proposal_id, user_id))
+            conn.execute("""
+                INSERT INTO audit_events (
+                    id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+                ) VALUES (?, ?, 'PROPOSAL_EXPIRED', ?, NULL, ?, ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
+            """, (
+                f"evt-{uuid.uuid4().hex[:12]}",
+                user_id,
+                proposal_id,
+                f"Market quote expired before confirmation was received ({reason}).",
+                json.dumps({"reason": reason, "mode": "DEMO"}),
+                now,
             ))
         conn.close()
 
@@ -579,8 +685,9 @@ class Storage:
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT * FROM audit_events WHERE user_id = ?
-            ORDER BY created_at DESC LIMIT ?
+            SELECT id, user_id, event_type, proposal_id, order_id, summary, metadata_json, created_at, seq, is_recorded
+            FROM audit_events WHERE user_id = ?
+            ORDER BY seq DESC, created_at DESC LIMIT ?
         """, (user_id, limit))
         rows = cur.fetchall()
         conn.close()
@@ -594,6 +701,8 @@ class Storage:
                 summary=r["summary"],
                 metadata=json.loads(r["metadata_json"]) if r["metadata_json"] else {},
                 timestamp=r["created_at"],
+                seq=r["seq"],
+                is_recorded=bool(r["is_recorded"]) if r["is_recorded"] is not None else True,
             )
             for r in rows
         ]
@@ -625,7 +734,9 @@ class Storage:
 
             import uuid
             conn.execute("""
-                INSERT INTO audit_events (id, user_id, event_type, summary, metadata_json, created_at)
-                VALUES (?, ?, 'ACCOUNT_RESET', 'Session demo account reset to initial balances ($10,000 USDC, 0.15 BTC, 1.5 ETH, 10 SOL).', ?, ?)
+                INSERT INTO audit_events (
+                    id, user_id, event_type, summary, metadata_json, created_at, seq, is_recorded
+                ) VALUES (?, ?, 'ACCOUNT_RESET', 'Session demo account reset to initial balances ($10,000 USDC, 0.15 BTC, 1.5 ETH, 10 SOL).', ?, ?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM audit_events), 1)
             """, (f"evt-reset-{uuid.uuid4().hex[:12]}", session_id, json.dumps({"cash": 10000.0, "btc": 0.15, "eth": 1.5, "sol": 10.0}), now))
         conn.close()
+

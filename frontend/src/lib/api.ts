@@ -3,6 +3,7 @@ import {
   IntentParseResponse,
   OrderRecord,
   PortfolioSummary,
+  SafetySignalsReport,
   SessionResetResponse,
   TradeProposal,
 } from "./types";
@@ -140,6 +141,9 @@ export const api = {
 
   getActivity: (limit = 50) =>
     fetchJson<AuditEvent[]>(`/activity?limit=${limit}`, undefined, true),
+
+  getSafetySignals: () =>
+    fetchJson<SafetySignalsReport>("/safety-signals", undefined, true),
 
   resetDemo: () =>
     fetchJson<SessionResetResponse>("/session/reset", {

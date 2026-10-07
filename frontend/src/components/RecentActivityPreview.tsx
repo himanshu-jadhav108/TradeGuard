@@ -51,11 +51,49 @@ export function RecentActivityPreview({ refreshTrigger }: RecentActivityPreviewP
           label: "Confirmed",
           style: "bg-accent-surface text-accent border-accent/20",
         };
+      case "WARNING_ACKNOWLEDGED":
+        return {
+          icon: <CheckCircle2 className="h-3.5 w-3.5 text-accent" />,
+          label: "Warn Ack",
+          style: "bg-accent-surface text-accent border-accent/20",
+        };
+      case "RISK_EVALUATED":
       case "PROPOSAL_CREATED":
         return {
-          icon: <FileText className="h-3.5 w-3.5 text-warn" />,
-          label: "Proposed",
+          icon: <ShieldCheck className="h-3.5 w-3.5 text-accent" />,
+          label: "Risk Check",
+          style: "bg-accent-surface text-accent border-accent/20",
+        };
+      case "CONFIRM_REJECTED":
+      case "ORDER_FAILED":
+        return {
+          icon: <AlertCircle className="h-3.5 w-3.5 text-danger" />,
+          label: "Rejected",
+          style: "bg-danger-surface text-danger border-danger/20",
+        };
+      case "INTENT_PARSED":
+        return {
+          icon: <FileText className="h-3.5 w-3.5 text-accent" />,
+          label: "Parsed",
+          style: "bg-accent-surface text-accent border-accent/20",
+        };
+      case "INTENT_REJECTED":
+        return {
+          icon: <AlertCircle className="h-3.5 w-3.5 text-warn" />,
+          label: "Rejected",
           style: "bg-warn-surface text-warn border-warn/20",
+        };
+      case "PROPOSAL_EXPIRED":
+        return {
+          icon: <Clock className="h-3.5 w-3.5 text-warn" />,
+          label: "Expired",
+          style: "bg-warn-surface text-warn border-warn/20",
+        };
+      case "TRADE_CANCELLED":
+        return {
+          icon: <Clock className="h-3.5 w-3.5 text-fg-subtle" />,
+          label: "Cancelled",
+          style: "bg-canvas-subtle text-fg-subtle border-border",
         };
       case "ACCOUNT_SEEDED":
       case "ACCOUNT_RESET":
