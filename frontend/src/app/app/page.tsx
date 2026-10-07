@@ -50,7 +50,7 @@ export default function TradeDeskPage() {
             <span>Pre-Trade Review Desk</span>
           </h2>
           <span className="text-[11px] font-mono text-fg-subtle">
-            AI interprets · Backend validates · User decides
+            Structured intent · Backend validates · User decides
           </span>
         </div>
 

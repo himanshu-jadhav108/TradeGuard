@@ -38,7 +38,7 @@ app.include_router(api_router)
 def root():
     return {
         "service": "TradeGuard Backend",
-        "tagline": "Think before you trade. AI interprets. Backend validates. User decides.",
+        "tagline": "Think before you trade. Structured intent. Deterministic validation. User decides.",
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/api/health",

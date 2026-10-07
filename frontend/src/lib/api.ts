@@ -85,8 +85,10 @@ export const api = {
   getHealth: () =>
     fetchJson<{
       status: string;
+      mode?: string;
       true_markets_mode: string;
       true_markets_configured: boolean;
+      true_markets_available?: boolean;
       supported_assets: string[];
     }>("/health", undefined, true),
 

@@ -27,7 +27,7 @@ export default function PortfolioPage() {
             Portfolio & Asset Holdings
           </h1>
           <p className="text-xs text-fg-subtle mt-0.5">
-            Settled balances, asset exposure distribution, and real-time market valuations
+            Settled balances, asset exposure distribution, and current portfolio valuations
           </p>
         </div>
 

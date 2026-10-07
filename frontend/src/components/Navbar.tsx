@@ -15,9 +15,21 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [mode, setMode] = useState<"DEMO" | "UAT">("DEMO");
 
   React.useEffect(() => {
     setMounted(true);
+    api
+      .getHealth()
+      .then((h) => {
+        const isUat =
+          h.mode === "uat" ||
+          (h.true_markets_mode === "uat" && h.true_markets_configured);
+        setMode(isUat ? "UAT" : "DEMO");
+      })
+      .catch(() => {
+        setMode("DEMO");
+      });
   }, []);
 
   const isApp = pathname?.startsWith("/app");
@@ -115,7 +127,7 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
               TradeGuard
             </span>
             <span className="rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold bg-accent-surface text-accent border border-accent/20">
-              DEMO · SIMULATED
+              {mode === "UAT" ? "UAT · GATEWAY" : "DEMO · SIMULATED"}
             </span>
           </div>
         </Link>
@@ -164,11 +176,15 @@ export function Navbar({ onReset }: { onReset?: () => void }) {
 
         {/* Right Desktop Actions */}
         <div className="hidden sm:flex items-center gap-2.5">
-          {/* Simulated Mode Pill */}
+          {/* Mode Pill */}
           <div className="flex items-center gap-1.5 rounded-full border border-border bg-canvas-subtle px-2.5 py-1 text-xs">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                mode === "UAT" ? "bg-emerald-500" : "bg-accent"
+              } animate-pulse`}
+            />
             <span className="font-mono text-[11px] font-medium text-fg-muted">
-              DEMO
+              {mode}
             </span>
           </div>
 

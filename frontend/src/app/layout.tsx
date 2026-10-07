@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/lib/theme";
 export const metadata: Metadata = {
   title: "TradeGuard — Think before you trade.",
   description:
-    "AI-assisted execution with live market context, deterministic risk checks, and explicit human control.",
+    "Pre-trade safety layer with structured intent parsing, deterministic risk gates, and explicit human control.",
   icons: {
     icon: [
       { url: "/favicon.ico" },
