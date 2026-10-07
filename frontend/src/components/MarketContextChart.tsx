@@ -224,7 +224,12 @@ export function MarketContextChart({
 
   // Update candle data in chart series
   useEffect(() => {
-    if (!seriesRef.current || !marketData?.candles || marketData.candles.length === 0) {
+    if (!seriesRef.current) return;
+
+    if (!marketData?.candles || marketData.candles.length === 0) {
+      try {
+        seriesRef.current.setData([]);
+      } catch {}
       return;
     }
 
@@ -257,23 +262,26 @@ export function MarketContextChart({
 
     // Only add marker if active proposal matches current asset
     if (activeProposal && activeProposal.asset === selectedAsset && activeProposal.quote) {
-      const entryPrice =
+      const rawPrice =
         activeProposal.side === "BUY"
           ? activeProposal.quote.ask
           : activeProposal.quote.bid;
+      const entryPrice = typeof rawPrice === "number" ? rawPrice : null;
 
-      try {
-        const line = seriesRef.current.createPriceLine({
-          price: entryPrice,
-          color: "#06b6d4", // Restrained cyan/teal
-          lineWidth: 2,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: `Proposed Entry ($${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
-        });
-        priceLineRef.current = line;
-      } catch (e) {
-        console.warn("Failed to create proposed trade price line:", e);
+      if (entryPrice !== null) {
+        try {
+          const line = seriesRef.current.createPriceLine({
+            price: entryPrice,
+            color: "#06b6d4", // Restrained cyan/teal
+            lineWidth: 2,
+            lineStyle: LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `Proposed Entry ($${entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`,
+          });
+          priceLineRef.current = line;
+        } catch (e) {
+          console.warn("Failed to create proposed trade price line:", e);
+        }
       }
     }
   }, [activeProposal, selectedAsset]);
@@ -345,7 +353,7 @@ export function MarketContextChart({
         <div className="flex flex-wrap items-baseline justify-between gap-3 pt-1">
           <div className="flex items-baseline gap-2.5">
             <span className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-fg tabular-nums">
-              {marketData?.current_price
+              {typeof marketData?.current_price === "number"
                 ? `$${marketData.current_price.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: marketData.current_price < 10 ? 4 : 2,
@@ -353,7 +361,7 @@ export function MarketContextChart({
                 : "—"}
             </span>
 
-            {marketData?.price_change !== undefined && (
+            {typeof marketData?.price_change === "number" && typeof marketData?.price_change_pct === "number" && (
               <div
                 className={`inline-flex items-center gap-1 text-xs font-mono font-semibold ${
                   isUp ? "text-accent" : "text-danger"
@@ -377,7 +385,7 @@ export function MarketContextChart({
 
           {/* 24H Range & Freshness */}
           <div className="flex items-center gap-3 text-[11px] font-mono text-fg-subtle">
-            {marketData?.high !== undefined && marketData?.low !== undefined && (
+            {typeof marketData?.high === "number" && typeof marketData?.low === "number" && (
               <div className="hidden sm:flex items-center gap-2">
                 <span>
                   24H H: <strong className="text-fg">${marketData.high.toLocaleString()}</strong>
@@ -456,7 +464,7 @@ export function MarketContextChart({
           <span className="text-fg-muted">({selectedAsset} / {selectedTimeframe} · {TIMEFRAMES.find(t => t.label === selectedTimeframe)?.resolution})</span>
         </div>
 
-        {activeProposal && activeProposal.asset === selectedAsset ? (
+        {activeProposal && activeProposal.asset === selectedAsset && typeof activeProposal.quote?.mid === "number" ? (
           <div className="flex items-center gap-1.5 text-cyan-500 font-semibold">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 animate-pulse" />
             <span>
