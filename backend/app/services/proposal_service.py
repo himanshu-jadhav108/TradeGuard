@@ -15,7 +15,7 @@ from app.services.risk_engine import RiskEngine
 
 class ProposalService:
     @classmethod
-    def create_proposal(
+    async def create_proposal(
         cls, request: TradeProposalCreateRequest, user_id: str = "demo-user-1"
     ) -> TradeProposal:
         raw_prompt = request.prompt
@@ -36,7 +36,7 @@ class ProposalService:
             amount_type = request.amount_type or AmountType.USD
 
         # 2. Retrieve quote
-        quote = QuoteService.get_quote(asset)
+        quote = await QuoteService.get_quote(asset, user_id=user_id)
 
         # 3. Retrieve user balances
         portfolio_data = Storage.get_portfolio(user_id)

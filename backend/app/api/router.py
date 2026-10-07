@@ -39,12 +39,16 @@ def get_session_id(x_session_id: Optional[str] = Header(None)) -> str:
 @api_router.get("/health")
 def health_check():
     tm_client = TrueMarketsClient()
+    uat_configured = tm_client.is_configured()
+    active_mode = "uat" if (settings.TM_ENV == "uat" and uat_configured) else "demo"
     return {
         "status": "ok",
         "app": settings.APP_NAME,
         "environment": settings.APP_ENV,
+        "mode": active_mode,
         "true_markets_mode": settings.TM_ENV,
-        "true_markets_configured": tm_client.is_configured(),
+        "true_markets_configured": uat_configured,
+        "true_markets_available": (settings.TM_ENV == "uat" and uat_configured),
         "supported_assets": settings.SUPPORTED_ASSETS,
         "max_notional_usd": settings.MAX_NOTIONAL_USD,
         "concentration_threshold_pct": settings.CONCENTRATION_THRESHOLD_PCT,
@@ -64,11 +68,11 @@ def parse_intent(request: IntentParseRequest):
 
 
 @api_router.post("/trades/proposals", response_model=TradeProposal)
-def create_proposal(
+async def create_proposal(
     request: TradeProposalCreateRequest,
     session_id: str = Depends(get_session_id),
 ):
-    return ProposalService.create_proposal(request, user_id=session_id)
+    return await ProposalService.create_proposal(request, user_id=session_id)
 
 
 @api_router.get("/trades/proposals/{proposal_id}", response_model=TradeProposal)

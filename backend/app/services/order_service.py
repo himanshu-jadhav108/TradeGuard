@@ -166,6 +166,7 @@ class OrderService:
                         pair=proposal.quote.pair,
                         side=proposal.side.value,
                         quantity=proposal.estimated_qty,
+                        quote_id=proposal.quote.quote_id,
                         user_id=user_id,
                     )
                     ext_id = gw_order.get("id") or gw_order.get("order_id")
@@ -174,6 +175,16 @@ class OrderService:
                     status_str = exec_res.get("status", "SUBMITTED").upper()
 
                     order_status = OrderStatus.FILLED if status_str in ("FILLED", "COMPLETED") else OrderStatus.SUBMITTED
+
+                    # Never use quote mid as a fill price
+                    gateway_fill_price = None
+                    if order_status == OrderStatus.FILLED:
+                        raw_fill = exec_res.get("fill_price") or exec_res.get("price") or gw_order.get("fill_price")
+                        if raw_fill is not None:
+                            try:
+                                gateway_fill_price = float(raw_fill)
+                            except (ValueError, TypeError):
+                                gateway_fill_price = None
 
                     order = OrderRecord(
                         id=order_id,
@@ -185,7 +196,7 @@ class OrderService:
                         notional_usd=proposal.estimated_notional_usd,
                         status=order_status,
                         external_order_id=ext_id,
-                        fill_price=proposal.quote.mid,
+                        fill_price=gateway_fill_price,
                         created_at=now,
                         updated_at=now,
                         mode="UAT",

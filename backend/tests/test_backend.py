@@ -97,7 +97,7 @@ def test_intent_oversized_prompt_rejection():
 # ==========================================
 
 def test_risk_engine_pass():
-    quote = QuoteService.get_quote("BTC")
+    quote = QuoteService.get_demo_quote("BTC")
     risk_result, impact, qty, notional = RiskEngine.evaluate_trade(
         asset="BTC",
         side=OrderSide.BUY,
@@ -114,7 +114,7 @@ def test_risk_engine_pass():
 
 
 def test_risk_engine_block_insufficient_cash():
-    quote = QuoteService.get_quote("BTC")
+    quote = QuoteService.get_demo_quote("BTC")
     risk_result, impact, qty, notional = RiskEngine.evaluate_trade(
         asset="BTC",
         side=OrderSide.BUY,
@@ -132,7 +132,7 @@ def test_risk_engine_block_insufficient_cash():
 
 
 def test_risk_engine_block_max_notional_ceiling():
-    quote = QuoteService.get_quote("BTC")
+    quote = QuoteService.get_demo_quote("BTC")
     risk_result, _, _, _ = RiskEngine.evaluate_trade(
         asset="BTC",
         side=OrderSide.BUY,
@@ -150,7 +150,7 @@ def test_risk_engine_block_max_notional_ceiling():
 
 
 def test_risk_engine_concentration_warning():
-    quote = QuoteService.get_quote("BTC")
+    quote = QuoteService.get_demo_quote("BTC")
     # Portfolio: cash $10,000, 0.15 BTC ($12,967). Buying $5,000 BTC raises BTC to ~58% (>40%)
     risk_result, impact, _, _ = RiskEngine.evaluate_trade(
         asset="BTC",
@@ -322,3 +322,206 @@ def test_true_markets_client_unconfigured_safety():
         import asyncio
         asyncio.run(tm.get_quote("BTC/USDC", "BUY", 500.0))
     assert "credentials not configured" in str(exc_info.value)
+
+
+def test_true_markets_client_auth_url_normalization():
+    from app.services.true_markets_client import TrueMarketsClient
+
+    # With standard gateway URL containing /v1/gateway
+    tm1 = TrueMarketsClient(base_url="https://api.uat.truemarkets.co/v1/gateway")
+    assert tm1._get_auth_url() == "https://api.uat.truemarkets.co/v1/auth/api-key/token"
+
+    # With base domain without trailing segment
+    tm2 = TrueMarketsClient(base_url="https://api.uat.truemarkets.co")
+    assert tm2._get_auth_url() == "https://api.uat.truemarkets.co/v1/auth/api-key/token"
+
+    # With /gateway base
+    tm3 = TrueMarketsClient(base_url="https://api.uat.truemarkets.co/gateway")
+    assert tm3._get_auth_url() == "https://api.uat.truemarkets.co/v1/auth/api-key/token"
+
+
+def test_true_markets_client_signer_key_resolution(tmp_path):
+    from app.services.true_markets_client import TrueMarketsClient
+
+    # Direct signer key
+    tm_direct = TrueMarketsClient(signer_key="secret-key-123")
+    assert tm_direct.get_signer_key() == "secret-key-123"
+
+    # File path signer key
+    key_file = tmp_path / "signer.key"
+    key_file.write_text("file-secret-key-456")
+    tm_file = TrueMarketsClient(signer_key_path=str(key_file))
+    assert tm_file.get_signer_key() == "file-secret-key-456"
+
+    # Non-existent file path
+    tm_none = TrueMarketsClient(signer_key_path=str(tmp_path / "missing.key"))
+    assert tm_none.get_signer_key() is None
+
+
+async def test_uat_quote_success_gateway_tagged(monkeypatch):
+    from app.core.config import settings
+    from app.services.quote_service import QuoteService
+    from app.services.true_markets_client import TrueMarketsClient
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    async def mock_get_quote(self, pair, side, amount, user_id="demo-user-1"):
+        return {
+            "pair": "BTC/USDC",
+            "bid": 86100.0,
+            "ask": 86200.0,
+            "mid": 86150.0,
+            "quote_id": "gw-quote-789",
+            "expires_at": "2026-10-11T12:00:00Z",
+            "timestamp": "2026-10-11T11:59:30Z",
+        }
+
+    monkeypatch.setattr(TrueMarketsClient, "get_quote", mock_get_quote)
+
+    quote = await QuoteService.get_quote("BTC")
+    assert quote.source == "TRUE_MARKETS_UAT"
+    assert quote.quote_id == "gw-quote-789"
+    assert quote.bid == 86100.0
+    assert quote.ask == 86200.0
+    assert quote.mid == 86150.0
+
+
+async def test_uat_quote_error_raises_and_never_tags_static_price_as_uat(monkeypatch):
+    from app.core.config import settings
+    from app.services.quote_service import QuoteService
+    from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    async def mock_get_quote_error(self, pair, side, amount, user_id="demo-user-1"):
+        raise TrueMarketsClientError("Upstream gateway 500 error", status_code=500, error_code="GATEWAY_ERROR")
+
+    monkeypatch.setattr(TrueMarketsClient, "get_quote", mock_get_quote_error)
+
+    with pytest.raises(TrueMarketsClientError):
+        await QuoteService.get_quote("BTC")
+
+
+async def test_uat_quote_timeout_raises_and_never_tags_static_price_as_uat(monkeypatch):
+    from app.core.config import settings
+    from app.services.quote_service import QuoteService
+    from app.services.true_markets_client import TrueMarketsClient, TrueMarketsClientError
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    async def mock_get_quote_timeout(self, pair, side, amount, user_id="demo-user-1"):
+        raise TrueMarketsClientError("Gateway quote timeout", status_code=504, error_code="GATEWAY_TIMEOUT")
+
+    monkeypatch.setattr(TrueMarketsClient, "get_quote", mock_get_quote_timeout)
+
+    with pytest.raises(TrueMarketsClientError) as exc_info:
+        await QuoteService.get_quote("BTC")
+    assert exc_info.value.status_code == 504
+    assert exc_info.value.error_code == "GATEWAY_TIMEOUT"
+
+
+def test_demo_mode_never_tags_static_price_as_uat(monkeypatch):
+    from app.core.config import settings
+    from app.services.quote_service import QuoteService
+
+    # Even if TM_ENV is uat, without credentials it must return DEMO_SIMULATOR
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", None)
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", None)
+
+    import asyncio
+    quote = asyncio.run(QuoteService.get_quote("BTC"))
+    assert quote.source == "DEMO_SIMULATOR"
+    assert quote.quote_id is None
+
+    # In DEMO mode, strictly DEMO_SIMULATOR
+    monkeypatch.setattr(settings, "TM_ENV", "demo")
+    quote_demo = asyncio.run(QuoteService.get_quote("ETH"))
+    assert quote_demo.source == "DEMO_SIMULATOR"
+    assert quote_demo.quote_id is None
+
+
+async def test_uat_order_passes_quote_id_and_never_uses_mid_as_fill_price(monkeypatch):
+    from app.core.config import settings
+    from app.domain.models import QuoteSnapshot, RiskResult, PortfolioImpact, OrderSide, AmountType, TradeProposal, TradeConfirmRequest
+    from app.services.order_service import OrderService
+    from app.services.true_markets_client import TrueMarketsClient
+    from app.db.store import Storage
+
+    monkeypatch.setattr(settings, "TM_ENV", "uat")
+    monkeypatch.setattr(settings, "TM_API_KEY", "mock-key")
+    monkeypatch.setattr(settings, "TM_ORGANIZATION_USER_ID", "mock-org-user")
+
+    captured_create = {}
+
+    async def mock_create_order(self, pair, side, quantity, quote_id=None, user_id="demo-user-1"):
+        captured_create["pair"] = pair
+        captured_create["quote_id"] = quote_id
+        return {"id": "gw-order-999", "status": "PENDING"}
+
+    async def mock_execute_order(self, order_id, signature=None, user_id="demo-user-1"):
+        # Returns SUBMITTED status without fill price
+        return {"id": order_id, "status": "SUBMITTED"}
+
+    monkeypatch.setattr(TrueMarketsClient, "create_order", mock_create_order)
+    monkeypatch.setattr(TrueMarketsClient, "execute_order", mock_execute_order)
+
+    user_id = "test-uat-quote-id-user"
+    Storage.reset_session(user_id)
+
+    quote = QuoteSnapshot(
+        pair="BTC/USDC",
+        base_asset="BTC",
+        quote_asset="USDC",
+        bid=86000.0,
+        ask=86100.0,
+        mid=86050.0,
+        spread_pct=0.116,
+        timestamp="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        source="TRUE_MARKETS_UAT",
+        quote_id="gw-quote-captured-123",
+    )
+
+    prop = TradeProposal(
+        id="prop-test-uat-1",
+        user_id=user_id,
+        asset="BTC",
+        side=OrderSide.BUY,
+        request_amount=100.0,
+        request_amount_type=AmountType.USD,
+        estimated_qty=0.00116,
+        estimated_notional_usd=100.0,
+        quote=quote,
+        risk=RiskResult(overall_status="PASS", can_execute=True, checks=[]),
+        portfolio_impact=PortfolioImpact(
+            asset="BTC", current_qty=0.0, current_value_usd=0.0, current_allocation_pct=0.0,
+            projected_qty=0.00116, projected_value_usd=100.0, projected_allocation_pct=1.0,
+            cash_before_usd=10000.0, cash_after_usd=9900.0,
+            total_portfolio_value_before=10000.0, total_portfolio_value_after=10000.0,
+        ),
+        explanation="Testing UAT quote id forwarding",
+        created_at="2026-10-11T12:00:00Z",
+        expires_at="2026-10-11T12:05:00Z",
+        status="PENDING_CONFIRMATION",
+    )
+    Storage.save_proposal(prop)
+
+    order = await OrderService.confirm_proposal(
+        proposal_id=prop.id,
+        confirm_req=TradeConfirmRequest(proposal_id=prop.id),
+        user_id=user_id,
+    )
+
+    # 1. quote_id was passed to create_order
+    assert captured_create["quote_id"] == "gw-quote-captured-123"
+    # 2. Never use quote mid as a fill price: SUBMITTED status must have fill_price None
+    assert order.status.value == "SUBMITTED"
+    assert order.fill_price is None
+    assert order.fill_price != quote.mid
