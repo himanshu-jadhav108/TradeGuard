@@ -2,7 +2,7 @@
 
 **Submission Target:** True Markets — Call for Builders: Build the Next Wealth App  
 **Status Date:** October 4, 2026  
-**Operating Directive:** Think before you trade. AI interprets. Backend validates. User decides.
+**Operating Directive:** Think before you trade. Structured intent. Backend validates. User decides.
 
 ---
 

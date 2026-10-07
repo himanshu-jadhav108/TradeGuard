@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     CONCENTRATION_THRESHOLD_PCT: float = 0.40  # 40% portfolio warning
     QUOTE_TTL_SECONDS: int = 30
 
+    # Database Configuration
+    DB_PATH: str = "tradeguard.db"
+
     # Supported Assets Allowlist
     SUPPORTED_ASSETS: Union[List[str], str] = ["BTC", "ETH", "SOL", "USDC"]
 

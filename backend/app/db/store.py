@@ -5,16 +5,24 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException
+from app.core.config import settings
 from app.domain.models import AuditEvent, OrderRecord, OrderSide, OrderStatus, Position, TradeProposal
 
-DB_PATH = Path(__file__).parent.parent.parent / "tradeguard.db"
+
+def get_db_path() -> Path:
+    p = Path(settings.DB_PATH)
+    if not p.is_absolute():
+        p = Path(__file__).parent.parent.parent / p
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
 
 _db_initialized = False
 
 
 def get_db():
     global _db_initialized
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     if not _db_initialized:
         _db_initialized = True
@@ -23,7 +31,7 @@ def get_db():
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(get_db_path(), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     with conn:
         conn.execute("""

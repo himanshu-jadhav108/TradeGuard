@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -11,8 +9,9 @@ services:
       - APP_ENV=production
       - TM_ENV=demo
       - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - DB_PATH=/app/data/tradeguard.db
     volumes:
-      - tradeguard-data:/app/tradeguard.db
+      - tradeguard-data:/app/data
 
   frontend:
     build:

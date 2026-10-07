@@ -17,10 +17,10 @@
 [![Next.js 15](https://img.shields.io/badge/Next.js-15.5-black.svg?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
 [![TypeScript 5.7](https://img.shields.io/badge/TypeScript-5.7-3178c6.svg?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS 3.4](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests Passing](https://img.shields.io/badge/pytest-20%2F20%20passed-22c55e.svg?style=flat-square&logo=pytest&logoColor=white)](backend/tests/test_backend.py)
-[![Hackathon Submission](https://img.shields.io/badge/True%20Markets-Call%20for%20Builders-f59e0b.svg?style=flat-square)](https://truemarkets.co/)
+[![Tests Passing](https://img.shields.io/badge/pytest-37%2F37%20passed-22c55e.svg?style=flat-square&logo=pytest&logoColor=white)](backend/tests/test_backend.py)
+[![Hackathon Submission](https://img.shields.io/badge/TradeSphere-Hackathon%202026-f59e0b.svg?style=flat-square)](https://tradesphere.dev/)
 
-[Live Deployments](#-live-deployments) • [Product Demo](#-product-demo-video) • [Product Overview](#what-is-tradeguard) • [The Core Principle](#the-tradeguard-principle) • [How It Works](#how-it-works) • [Safety Architecture](#safety-architecture) • [Trade Review](#trade-review) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Quick Start](#quick-start)
+[Live Deployments](#-live-deployments) • [Product Demo](#-product-demo-video) • [TradeSphere Rubric Mapping](#-tradesphere-hackathon-2026-rubric-mapping) • [Product Overview](#what-is-tradeguard) • [How It Works](#how-it-works) • [Safety Architecture](#safety-architecture) • [Deterministic Algorithms](#-deterministic-algorithms) • [Risk Controls](#deterministic-risk-controls) • [True Markets Integration](#true-markets-integration) • [Demo Script](#-step-by-step-judge-demo-script) • [Quick Start](#quick-start)
 
 ---
 
@@ -35,8 +35,8 @@ TradeGuard is fully deployed and accessible in production across a decoupled edg
 | **Frontend Web App** | **Vercel** | [https://trade-guard-snowy.vercel.app/](https://trade-guard-snowy.vercel.app/) | [![Vercel](https://img.shields.io/badge/Vercel-Active-0d9488?style=flat-square&logo=vercel)](https://trade-guard-snowy.vercel.app/) | Landing page, interactive review stepper, Trade Desk, Portfolio & Activity views |
 | **Product Video Demo** | **YouTube** | [https://youtu.be/BGDGehrNNOg](https://youtu.be/BGDGehrNNOg) | [![YouTube](https://img.shields.io/badge/YouTube-Watch%20Demo-FF0000?style=flat-square&logo=youtube)](https://youtu.be/BGDGehrNNOg) | Full architecture & pre-trade risk verification walkthrough |
 | **Backend REST API** | **Render** | [https://tradeguard-backend-ynuc.onrender.com/](https://tradeguard-backend-ynuc.onrender.com/) | [![Render](https://img.shields.io/badge/Render-Online-46e3b7?style=flat-square&logo=render)](https://tradeguard-backend-ynuc.onrender.com/api/health) | FastAPI microservice running deterministic risk engine & quote service |
-| **API Health Check** | **Render** | [`/api/health`](https://tradeguard-backend-ynuc.onrender.com/api/health) | `HTTP 200 OK` | Real-time service status, environment indicators, and configured limits |
-| **Interactive Docs** | **Render** | [`/docs`](https://tradeguard-backend-ynuc.onrender.com/docs) | `Swagger UI` | Complete OpenAPI schema specification with interactive execution console |
+| **API Health Check** | **Render** | [`/api/health`](https://tradeguard-backend-ynuc.onrender.com/api/health) | `HTTP 200 OK` | Service health status, environment indicators, and configured limits |
+| **Interactive Docs** | **Local / Dev** | [`/docs`](http://localhost:8000/docs) | `Swagger UI` | OpenAPI schema console (enabled when `DEBUG=True` / development; disabled in production for security) |
 
 ---
 
@@ -59,7 +59,21 @@ Watch the complete product demonstration of TradeGuard in action:
 > • Trade Review Hero with projected portfolio allocation shift (45.0% → 58.2%)  
 > • Mandatory human override checkbox before execution authorization  
 > • Atomic SQL state lock (`CONFIRMING` → `EXECUTED`) preventing race conditions  
-> • Real-time Recharts donut portfolio update & immutable audit ledger log  
+> • Interactive Recharts donut portfolio update & append-only audit event log  
+
+---
+
+## 🏆 TradeSphere Hackathon 2026 Rubric Mapping
+
+TradeGuard is submitted under the **Secure Trading** track (Primary) with deep integration into **Trading Visualization** (Secondary).
+
+| Evaluation Criteria | Weight | Implementation Evidence in TradeGuard |
+| :--- | :---: | :--- |
+| **Innovation** | **30%** | • **Zero Prompt Execution Authority:** Natural language parsed into explicit structured proposals before any financial exposure.<br>• **Deterministic Unit & Alias Disambiguation:** Resolves bare quantities, units, and tickers (`BTC`, `ETH`, `SOL`, `USDC`) while rejecting scientific notation and negation.<br>• **Rule-Based Safety Signals:** Sliding-window safety monitors for duplicate proposals, order velocity per minute, repeated rejected confirmations, and expired quote attempts.<br>• **One-Click Safe Amount Reduction:** Preserves trade side and automatically suggests maximum safe sizes when hitting balance or concentration thresholds. |
+| **Technical Execution** | **25%** | • **Atomic Two-Phase Execution:** SQLite `BEGIN IMMEDIATE` locks prevent double-fills and concurrent race conditions.<br>• **Server-Side Decimal Precision:** Python `Decimal` arithmetic for all financial balances and exposure math, eliminating floating-point rounding bugs.<br>• **Production Gateway Adapter:** Isolated True Markets Retail REST gateway client (`TrueMarketsClient`) with strict credential verification and deterministic fallback simulator.<br>• **Automated CI Test Suite:** 37 comprehensive pytest suites covering state machines, crash recovery, session isolation, and boundary limits. |
+| **Usability** | **20%** | • **Decision-Oriented Trade Review Card:** Eliminates confirmation fatigue by highlighting *You Said* vs *We Understood* and side-by-side projected portfolio exposure shifts.<br>• **Observed vs. Threshold Metric Chips:** Clear, transparent parameters rendered beneath every check item (`PASS`, `WARN`, `BLOCK`).<br>• **WCAG AA/AAA Accessibility:** Minimum 12px text across all viewports, high-contrast button typography, visible `:focus-visible` rings, `aria-live` countdown announcements, and `role="alert"` banners.<br>• **Responsive Multi-Device Layouts:** Verified at mobile (390px), tablet (768px), and desktop (1440px). |
+| **Impact** | **15%** | • **Fat-Finger Prevention:** Hard ceiling limit ($25,000) and balance sufficiency gates eliminate ruinous accidental orders.<br>• **Protection Against Prompt Injections:** Eliminates probabilistic LLM vulnerabilities by executing only server-validated structured orders.<br>• **Mitigation of Stale Market Fills:** 30-second TTL countdown locks stale proposals from filling at outdated market rates.<br>• **Guaranteed Session Isolation:** Cryptographically random client session IDs (`crypto.randomUUID`) ensure multi-visitor isolation. |
+| **Presentation** | **10%** | • **Decoupled Production Deployments:** Live edge web application on Vercel, live REST microservice on Render, and reproducible Docker Compose configuration.<br>• **End-to-End Product Video:** Comprehensive YouTube walkthrough showing the complete pre-trade verification flow.<br>• **Transparent Documentation:** Plainly stated dataset disclosure, algorithmic breakdown, and honest reporting of simulator vs gateway environments. |
 
 ---
 
@@ -71,7 +85,7 @@ Watch the complete product demonstration of TradeGuard in action:
 TradeGuard solves this by decoupling **interpretation** from **authoritative financial execution**:
 
 1. **Interprets Intent:** The user inputs an intent in plain English (e.g., *"Buy $500 of BTC"*). A deterministic rule-based interpreter extracts structured trade parameters (`asset`, `side`, `amount`, `amount_type`).
-2. **Retrieves Market Quotes:** Binds the intent to real-time asset pricing with a strict 30-second time-to-live (TTL) window.
+2. **Retrieves Market Quotes:** Binds the intent to fresh reference asset pricing with a strict 30-second time-to-live (TTL) window.
 3. **Executes Deterministic Risk Rules:** Evaluates portfolio concentration, balance sufficiency, max order limits, and asset allowlists using server-side Python `Decimal` arithmetic.
 4. **Stages Trade Review:** Renders a decision-oriented review ticket showing *You Said* vs *We Understood*, projected allocation changes, and rule verdicts (`PASS`, `WARN`, or `BLOCK`).
 5. **Enforces Human Confirmation:** Zero autonomous execution. If rules produce a `WARN`, explicit checkbox acknowledgement is mandatory. If `BLOCK`, confirmation is physically locked.
@@ -102,7 +116,7 @@ TradeGuard solves this by decoupling **interpretation** from **authoritative fin
 │                                                                 │
 │                      THE TRADEGUARD TRIAD                       │
 │                                                                 │
-│                     AI interprets.                              │
+│                     Structured intent.                          │
 │                     The backend validates.                      │
 │                     The user decides.                           │
 │                                                                 │
@@ -118,7 +132,7 @@ Probabilistic language models and intent parsers are **never the authority** for
 - Risk constraint boundaries or compliance limits
 - Order execution state or settlement records
 
-Those responsibilities belong exclusively to **deterministic backend systems**. The AI acts solely as a translation interface; the server validates facts; the human trader retains deliberate, non-bypassable final authority.
+Those responsibilities belong exclusively to **deterministic backend systems**. The parser acts solely as a translation interface; the server validates facts; the human trader retains deliberate, non-bypassable final authority.
 
 ---
 
@@ -212,7 +226,7 @@ The **Trade Review Card** is TradeGuard's centerpiece decision surface. Rather t
 │                                        (0.005782 BTC @ $86,471.61)     │
 ├────────────────────────────────────────────────────────────────────────┤
 │ QUOTED PRICE           ESTIMATED QTY           FRESHNESS TTL           │
-│ $86,471.61             0.005782 BTC            28s (Live Countdown)    │
+│ $86,471.61             0.005782 BTC            28s (Active Countdown)  │
 ├────────────────────────────────────────────────────────────────────────┤
 │ PROJECTED PORTFOLIO IMPACT                                             │
 │ BTC Portfolio Share:   45.0% ──────► 46.7% (Exceeds 40% Guideline)     │
@@ -283,7 +297,7 @@ TradeGuard ships with a self-contained, deterministic simulated environment read
 
 - **Pre-Seeded Balance:** Every new session starts with `$10,000.00 USDC`, `0.15 BTC`, `1.5 ETH`, and `10.0 SOL` (total initial valuation: `$28,810.75`).
 - **Visitor Session Isolation:** Each browser visitor generates a unique `X-Session-ID` stored in `localStorage`. Database records, proposals, and orders remain strictly isolated per user session.
-- **Realistic Pricing Engine:** Quotes incorporate a 0.05% institutional bid/ask spread and live 30-second TTL countdowns.
+- **Realistic Pricing Engine:** Quotes incorporate a 0.05% institutional bid/ask spread and active 30-second TTL countdowns.
 - **Instant Demo Reset:** The header contains a **Reset Demo** action issuing `POST /api/session/reset` to restore the active session without touching other concurrent visitors.
 - **Truthful Transparency:** All simulated executions display `DEMO · SIMULATED` badges. Demo Mode does **not** represent live capital or brokerage custody.
 
@@ -597,118 +611,193 @@ BACKEND_URL=https://tradeguard-backend-ynuc.onrender.com
 
 ---
 
-## Testing
+## 🧮 Deterministic Algorithms & Risk Math
 
-TradeGuard includes an automated test suite verifying intent parsing, risk calculations, race condition locks, and session isolation.
+TradeGuard strictly avoids probabilistic black-box decisions for financial execution. All parameters are validated deterministically:
 
-### 1. Run Backend Automated Test Suite (20 Tests)
+### 1. Rule-Based Intent Parser
+- **Alias Resolution:** Maps colloquial tokens (`bitcoin`, `ether`, `solana`, `usd coin`) to canonical tickers (`BTC`, `ETH`, `SOL`, `USDC`).
+- **Unit Disambiguation:** Disambiguates bare numbers (e.g. `Buy 500 BTC` prompts whether user meant `$500 USD` or `500 BTC`).
+- **Grammar Safety Gates:** Rejects negation terms (`don't`, `cancel`, `never`), compound multi-leg orders (`and`, `or`), scientific notation (`1e3`), and negative or zero amounts (`$0`, `-$50`).
+
+### 2. Authoritative `Decimal` Risk Engine
+All calculations use Python's `decimal.Decimal` module with explicit `ROUND_HALF_UP` quantization, preventing IEEE-754 floating-point inaccuracies:
+- **Allowlist Gate:** Enforces supported asset membership (`BTC`, `ETH`, `SOL`, `USDC`).
+- **Quote Freshness Gate:** Validates quote timestamp against `QUOTE_TTL_SECONDS` (30 seconds).
+- **Absolute Ceiling Gate:** Enforces `MAX_NOTIONAL_USD` ($25,000.00 hard limit).
+- **Cash & Position Sufficiency:** Checks liquid cash against required buy notional, or holding quantity against sell quantity.
+- **Projected Concentration Analysis:** Computes projected portfolio asset allocation post-fill. If projected exposure exceeds `CONCENTRATION_THRESHOLD_PCT` (40%), triggers a `WARN` requiring explicit human override.
+
+### 3. Rule-Based Safety Signals Algorithm
+Safety signals are computed strictly and deterministically from stored session audit records:
+- **Duplicate Proposals:** Flags identical `(asset, side, amount)` submissions within a 60-second sliding window.
+- **Order Velocity:** Computes proposal submission frequency per minute.
+- **Rejected Confirmations:** Tracks attempts to confirm blocked or insufficient-fund proposals.
+- **Expired Quote Retries:** Tracks confirmation attempts against stale quotes.
+
+### 4. Two-Phase Atomic State Machine
+```
+[PENDING_CONFIRMATION] ──(User Confirms)──> [CONFIRMING (Locked)] ──(Fill)──> [FILLED]
+         │                                         │
+         ├──(User Cancels)──> [CANCELLED]           └──(Gateway Error)──> [FAILED]
+         └──(TTL Expiry)────> [EXPIRED]
+```
+SQLite `BEGIN IMMEDIATE` locks ensure single-threaded atomic balance re-checks and fills, returning `HTTP 409 Conflict` on concurrent or duplicate submissions.
+
+---
+
+## 📊 Datasets Disclosure
+
+**TradeGuard uses NO opaque AI training datasets, black-box ML models, or synthetic market data feeds.**
+
+- **Simulated Demo Mode:** Operates on an authoritative, transparent baseline price table (`BTC: $86,450.00`, `ETH: $2,680.50`, `SOL: $182.25`, `USDC: $1.00`) with deterministic spreads and 30-second TTL quote expiration.
+- **True Markets UAT Mode:** Connects to the official True Markets Retail Gateway API (`/v1/gateway/quotes`, `/v1/gateway/orders`) when configured with valid credentials.
+- Static prices are never tagged as UAT quotes; quote sources are transparently labeled in the UI.
+
+---
+
+## 🧪 Testing & Verification
+
+TradeGuard includes an automated test suite verifying intent parsing, risk calculations, race condition locks, session hardening, and audit logging.
+
+### 1. Run Backend Automated Test Suite (37 Tests)
 
 ```powershell
 cd backend
-.venv\Scripts\python -m pytest -v
+python -m pytest -v
 ```
 
 ```text
 ============================= test session starts =============================
-collected 20 items
+platform win32 -- Python 3.14.6, pytest-9.0.3 -- Python interpreter
+collected 37 items
 
-tests/test_backend.py::test_intent_parsing_buy_usd PASSED                [  5%]
-tests/test_backend.py::test_intent_parsing_buy_asset_quantity PASSED     [ 10%]
-tests/test_backend.py::test_intent_parsing_fractional_asset PASSED       [ 15%]
-tests/test_backend.py::test_intent_parsing_sell_asset PASSED             [ 20%]
-tests/test_backend.py::test_intent_rejection_negation PASSED             [ 25%]
-tests/test_backend.py::test_intent_rejection_multi_leg PASSED            [ 30%]
-tests/test_backend.py::test_intent_rejection_scientific_notation PASSED  [ 35%]
-tests/test_backend.py::test_intent_rejection_unsupported_asset PASSED    [ 40%]
-tests/test_backend.py::test_intent_ambiguous_bare_number_clarification PASSED [ 45%]
-tests/test_backend.py::test_intent_oversized_prompt_rejection PASSED     [ 50%]
-tests/test_backend.py::test_risk_engine_pass PASSED                      [ 55%]
-tests/test_backend.py::test_risk_engine_block_insufficient_cash PASSED   [ 60%]
-tests/test_backend.py::test_risk_engine_block_max_notional_ceiling PASSED [ 65%]
-tests/test_backend.py::test_risk_engine_concentration_warning PASSED     [ 70%]
-tests/test_backend.py::test_e2e_proposal_confirm_and_double_confirm_prevention PASSED [ 75%]
-tests/test_backend.py::test_warn_requires_explicit_acknowledgement PASSED [ 80%]
-tests/test_backend.py::test_block_cannot_execute PASSED                  [ 85%]
-tests/test_backend.py::test_session_isolation_and_scoped_reset PASSED    [ 90%]
-tests/test_backend.py::test_get_reset_disallowed PASSED                  [ 95%]
-tests/test_backend.py::test_true_markets_client_unconfigured_safety PASSED [100%]
+tests/test_backend.py::test_intent_parsing_buy_usd PASSED                [  2%]
+tests/test_backend.py::test_intent_parsing_buy_asset_quantity PASSED     [  5%]
+tests/test_backend.py::test_intent_parsing_fractional_asset PASSED       [  8%]
+tests/test_backend.py::test_intent_parsing_sell_asset PASSED             [ 10%]
+tests/test_backend.py::test_intent_rejection_negation PASSED             [ 13%]
+tests/test_backend.py::test_intent_rejection_multi_leg PASSED            [ 16%]
+tests/test_backend.py::test_intent_rejection_scientific_notation PASSED  [ 18%]
+tests/test_backend.py::test_intent_rejection_unsupported_asset PASSED    [ 21%]
+tests/test_backend.py::test_intent_ambiguous_bare_number_clarification PASSED [ 24%]
+tests/test_backend.py::test_intent_oversized_prompt_rejection PASSED     [ 27%]
+tests/test_backend.py::test_risk_engine_pass PASSED                      [ 29%]
+tests/test_backend.py::test_risk_engine_block_insufficient_cash PASSED   [ 32%]
+tests/test_backend.py::test_risk_engine_block_max_notional_ceiling PASSED [ 35%]
+tests/test_backend.py::test_risk_engine_concentration_warning PASSED     [ 37%]
+tests/test_backend.py::test_e2e_proposal_confirm_and_double_confirm_prevention PASSED [ 40%]
+tests/test_backend.py::test_warn_requires_explicit_acknowledgement PASSED [ 43%]
+tests/test_backend.py::test_block_cannot_execute PASSED                  [ 45%]
+tests/test_backend.py::test_session_isolation_and_scoped_reset PASSED    [ 48%]
+tests/test_backend.py::test_get_reset_disallowed PASSED                  [ 51%]
+tests/test_backend.py::test_true_markets_client_unconfigured_safety PASSED [ 54%]
+tests/test_backend.py::test_true_markets_client_auth_url_normalization PASSED [ 56%]
+tests/test_backend.py::test_true_markets_client_signer_key_resolution PASSED [ 59%]
+tests/test_backend.py::test_uat_quote_success_gateway_tagged PASSED      [ 62%]
+tests/test_backend.py::test_uat_quote_error_raises_and_never_tags_static_price_as_uat PASSED [ 64%]
+tests/test_backend.py::test_uat_quote_timeout_raises_and_never_tags_static_price_as_uat PASSED [ 67%]
+tests/test_backend.py::test_demo_mode_never_tags_static_price_as_uat PASSED [ 70%]
+tests/test_backend.py::test_uat_order_passes_quote_id_and_never_uses_mid_as_fill_price PASSED [ 72%]
+tests/test_backend.py::test_forced_failure_after_fill_cannot_double_fill PASSED [ 75%]
+tests/test_backend.py::test_cancel_during_confirming_returns_409 PASSED  [ 78%]
+tests/test_backend.py::test_cancel_only_allowed_from_pending_confirmation PASSED [ 81%]
+tests/test_backend.py::test_uat_execute_failure_marks_order_failed_and_locks_proposal PASSED [ 83%]
+tests/test_backend.py::test_audit_intent_parsed_and_rejected PASSED      [ 86%]
+tests/test_backend.py::test_audit_risk_evaluated_warning_ack_and_rejections PASSED [ 89%]
+tests/test_backend.py::test_safety_signals_computation_and_endpoint PASSED [ 91%]
+tests/test_backend.py::test_intent_zero_and_negative_rejection PASSED    [ 94%]
+tests/test_backend.py::test_trade_proposal_validators_and_valueerror_mapping_to_422 PASSED [ 97%]
+tests/test_backend.py::test_session_hardening_missing_and_invalid_rejected_400 PASSED [100%]
 
-======================== 20 passed, 1 warning in 0.84s ========================
+======================== 37 passed, 1 warning in 1.49s ========================
 ```
 
-### 2. Run Frontend Typecheck & Linter
+### 2. Run Frontend Typecheck, Lint & Build
 
 ```powershell
 cd frontend
-
-# TypeScript strict type verification
 npm run typecheck
-
-# Non-interactive ESLint inspection
 npm run lint
-
-# Production build verification
 npm run build
 ```
 
 ---
 
-## Security Principles
+## 📋 Step-by-Step Judge Demo Script
 
-- **No Client Secrets:** API keys, private keys, and signing secrets are restricted to backend environment variables and never exposed to client JavaScript.
-- **Server-Side Authorization:** Client-side inputs cannot override server-evaluated risk verdicts. `BLOCK` trades cannot be executed through manual API calls.
-- **State Machine Concurrency Lock:** Proposals are claimed using atomic SQL queries before order execution, returning `HTTP 409` on duplicate confirmation requests.
-- **Safe Session Reset:** `GET /api/session/reset` returns `HTTP 405 Method Not Allowed`. State resets require explicit `POST` requests and are strictly scoped to the calling visitor's `X-Session-ID`.
+Judges can execute this 7-step test script to evaluate all safety guardrails:
+
+| Step | Action | Expected System Behavior |
+| :---: | :--- | :--- |
+| **1** | Enter: `Buy $500 of SOL` | **PASS (Clean):** Intent parsed as `BUY $500.00 SOL`. Allocation shifts within 40% threshold. Immediate confirm button available. |
+| **2** | Enter: `Buy $5,000 of BTC` | **WARN (Concentration Exceeded):** Warning flagged (`45.0% -> 58.2%`). Confirm button locked until explicit checkbox is acknowledged. |
+| **3** | Enter: `Buy $30,000 of BTC` | **BLOCK (Ceiling Exceeded):** Exceeds $25k ceiling limit. Confirm button completely disabled. Click *"Reduce order to safe limit"* to adjust trade size while preserving side. |
+| **4** | Enter: `Buy 500 BTC` | **AMBIGUOUS INTENT:** Clarification prompt appears: *"Did you mean $500 USD or 500 BTC?"* Prevents catastrophic unit confusion. |
+| **5** | Enter: `Don't buy BTC, sell $100 ETH` | **NEGATION REJECTED:** Parser detects contradictory instructions and prompts for an affirmative, single-leg intent. |
+| **6** | Staged Proposal Double-Click | **ATOMIC CONCURRENCY LOCK:** Rapidly confirming or sending duplicate requests returns `HTTP 409 Conflict`. Zero double-fills. |
+| **7** | Navigate to `/app/activity` | **AUDIT TIMELINE & SAFETY SIGNALS:** View complete event log with timestamps and review rule-based safety signals (duplicate count, submission velocity). |
+
+---
+
+## 🐳 Docker Compose Quick Start
+
+TradeGuard can be spun up in a single command using Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:8000
+- **Database Volume:** Configured via directory volume `tradeguard-data:/app/data` with configurable SQLite path `DB_PATH=/app/data/tradeguard.db`.
+
+---
+
+## ⚙️ Environment Variables Reference
+
+| Variable | Scope | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `APP_ENV` | Backend | `development` | Environment mode (`development` or `production`). Production disables `/docs`. |
+| `TM_ENV` | Backend | `demo` | Gateway mode (`demo` = simulator, `uat` = True Markets Gateway). |
+| `TM_API_BASE_URL` | Backend | `https://api.uat.truemarkets.co/v1/gateway` | True Markets UAT Gateway base URL. |
+| `TM_API_KEY` | Backend | `None` | True Markets organization API key. |
+| `TM_ORGANIZATION_USER_ID` | Backend | `None` | True Markets organization user ID. |
+| `TM_SIGNER_KEY_PATH` | Backend | `None` | Path to Ed25519 order signer private key file. |
+| `DB_PATH` | Backend | `tradeguard.db` | Configurable SQLite database file path. |
+| `CORS_ORIGINS` | Backend | `["http://localhost:3000"]` | Allowed CORS origins (JSON array or comma-separated). |
+| `MAX_NOTIONAL_USD` | Backend | `25000.0` | Server-enforced maximum trade notional ceiling ($). |
+| `CONCENTRATION_THRESHOLD_PCT` | Backend | `0.40` | Portfolio concentration warning threshold (40%). |
+| `QUOTE_TTL_SECONDS` | Backend | `30` | Quote time-to-live validity window (seconds). |
+| `NEXT_PUBLIC_API_URL` | Frontend | `/api` | Base API URL for frontend fetch client. |
+
+---
+
+## 🔒 Security Principles
+
+- **No Client Secrets:** API keys and private signing keys remain strictly on the backend.
+- **Server-Side Authorization:** Client-side UI flags are never authoritative; all validation occurs in Python.
+- **State Machine Concurrency Lock:** Proposals are claimed using atomic SQL queries before execution, returning `HTTP 409` on duplicates.
+- **Session Hardening:** `X-Session-ID` validated against strict regex (`[a-zA-Z0-9_-]{4,64}`). Missing or invalid session headers return `HTTP 400 Bad Request`.
 - **Zero Prompt Authority:** The natural-language interpreter cannot alter account balances, modify prices, or bypass risk limits.
 
 ---
 
-## Design Philosophy
-
-TradeGuard is engineered to feel like a **precision financial instrument** rather than a generic SaaS dashboard:
-
-1. **Information Architecture with Single-Purpose Surfaces:**
-   - **Trade Desk (`/app`):** Focused strictly on the decision to trade. Features a compact context strip, Trade Composer, the dominant Trade Review Hero (67% width), and recent event preview.
-   - **Portfolio (`/app/portfolio`):** Authoritative holding analytics, liquid cash, and allocation donut visualization.
-   - **Activity (`/app/activity`):** Authoritative chronological audit log with expandable parameters.
-2. **Unified Grid Visual Language:**
-   - **Hero Grid (`bg-grid-hero`):** High atmospheric presence on Landing (~100% intensity).
-   - **Workspace Grid (`bg-grid-workspace`):** Technical decision focus on Trade Desk (~35% intensity).
-   - **Ambient Grid (`bg-grid-ambient`):** Restrained background on Portfolio and Activity (~15% intensity).
-3. **Precision Rails & Tabular Numerals:** Section alignment rails and `tabular-nums` formatting ensure strict decimal alignment and readability.
-4. **Anti-AI-Slop:** Zero background videos, zero floating coin graphics, and zero purple gradient bloat. Crisp graphite borders and restrained teal accents convey institutional reliability.
-
----
-
-## Current Limitations
+## ⚠️ Known Limitations
 
 To maintain technical honesty:
 
 - **Demo Mode Execution:** Unless configured with active True Markets credentials, quotes and order fills are deterministically simulated.
 - **Supported Assets:** Allowlist is currently limited to `BTC`, `ETH`, `SOL`, and `USDC`.
-- **Order Types:** Currently executes single-leg market orders. Limit orders, stop losses, and multi-leg strategies are staged for subsequent releases.
+- **Order Types:** Currently executes single-leg market orders. Limit orders and stop-loss triggers are staged for subsequent releases.
 - **True Markets UAT:** Live gateway connectivity requires valid `TM_API_KEY` and `TM_ORGANIZATION_USER_ID` issued by True Markets.
+- **Database Engine:** Uses SQLite with WAL mode and `BEGIN IMMEDIATE` locks; suited for demonstration and moderate concurrency.
 
 ---
 
-## Roadmap
+## 🏆 Built for TradeSphere Hackathon 2026
 
-- [x] Natural-language intent parser with unit disambiguation
-- [x] Deterministic Python `Decimal` risk engine with 40% concentration warning
-- [x] Live quote snapshot generator with 30-second TTL countdown
-- [x] Atomic proposal confirmation lock preventing double executions
-- [x] Visitor-scoped session isolation and reset
-- [x] Full True Markets Retail Gateway REST adapter client
-- [x] Deduplicated information architecture with Trade Review Hero
-- [ ] Support for limit orders and stop-loss triggers
-- [ ] Multi-asset rebalancing proposals via single conversational prompt
-- [ ] True Markets WebSocket feed integration for streaming live L2 order book quotes
-
----
-
-## Built for True Markets Builder Challenge
-
-TradeGuard was conceived and engineered for the **True Markets — Call for Builders: Build the Next Wealth App** competition.
+TradeGuard was conceived and engineered for the **TradeSphere Hackathon 2026** competition.
 
 Traditional wealth platforms either force users through complex multi-field trading terminals or introduce probabilistic chatbots that risk hallucinating financial actions. TradeGuard builds the **trust layer for digital wealth management**: allowing users to express intent naturally while maintaining the rigorous safety, verification, and human oversight expected of institutional finance.
 
@@ -720,6 +809,7 @@ Traditional wealth platforms either force users through complex multi-field trad
   - **Live Web Application:** [https://trade-guard-snowy.vercel.app/](https://trade-guard-snowy.vercel.app/)
   - **Product Video Walkthrough:** [https://youtu.be/BGDGehrNNOg](https://youtu.be/BGDGehrNNOg)
   - **Production Backend API:** [https://tradeguard-backend-ynuc.onrender.com/api/health](https://tradeguard-backend-ynuc.onrender.com/api/health)
-  - **Interactive API Documentation:** [https://tradeguard-backend-ynuc.onrender.com/docs](https://tradeguard-backend-ynuc.onrender.com/docs)
+  - **Local Interactive API Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
   - **GitHub Profile:** [@himanshu-jadhav108](https://github.com/himanshu-jadhav108)
   - **Source Repository:** [TradeGuard](https://github.com/himanshu-jadhav108/TradeGuard)
+

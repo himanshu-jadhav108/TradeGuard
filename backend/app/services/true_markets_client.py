@@ -59,7 +59,7 @@ class TrueMarketsClient:
     def _get_auth_url(self) -> str:
         """
         Derives auth URL without doubling /v1 or leaking /gateway into the auth endpoint.
-        Per docs/internal/workflow/03_TRUE_MARKETS_INTEGRATION.md: POST /v1/auth/api-key/token
+        Per .internal-docs/workflow/03_TRUE_MARKETS_INTEGRATION.md: POST /v1/auth/api-key/token
         """
         url = self.base_url
         if url.endswith("/gateway"):
